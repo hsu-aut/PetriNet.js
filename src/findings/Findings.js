@@ -24,11 +24,16 @@ export default class Findings {
     this._own = [];
     this._fromHost = [];
     this._problem = null;
+    this._stale = false;
 
     // An edited net makes the findings stale, which is worse than no findings:
-    // a reader trusts a list that is on the screen.
+    // a reader trusts a list that is on the screen. Saying so is not the same
+    // as saying that the net is fine, hence the flag.
     eventBus.on(['commandStack.changed', 'import.done'], () => {
-      if (this._own.length || this._fromHost.length) this.clear();
+      if (!this._own.length && !this._fromHost.length) return;
+      this.clear();
+      this._stale = true;
+      this._changed();
     });
   }
 
@@ -37,6 +42,11 @@ export default class Findings {
     return [...this._own, ...this._fromHost].sort(
       (a, b) => (ORDER[a.severity] ?? 3) - (ORDER[b.severity] ?? 3),
     );
+  }
+
+  /** Whether the list was dropped because the net changed under it. */
+  get stale() {
+    return this._stale;
   }
 
   /** Why the net could not be analysed, as a sentence, or null. */
@@ -53,9 +63,11 @@ export default class Findings {
       const net = readNet(netFromElements(this._elementRegistry.getAll()));
       this._own = analyse(net, limits).findings;
       this._problem = null;
+      this._stale = false;
     } catch (error) {
       this._own = [];
       this._problem = error.message;
+      this._stale = false;
     }
 
     this._changed();
@@ -81,7 +93,13 @@ export default class Findings {
     this._own = [];
     this._fromHost = [];
     this._problem = null;
+    this._stale = false;
     this._changed();
+  }
+
+  /** Whether the element a finding is about is on the canvas. */
+  canShow(finding) {
+    return Boolean(finding?.element && this._elementRegistry.get(finding.element));
   }
 
   /** Selects what a finding is about, so a reader can see it on the canvas. */
@@ -94,6 +112,10 @@ export default class Findings {
   }
 
   _changed() {
-    this._eventBus.fire('findings.changed', { findings: this.all, problem: this._problem });
+    this._eventBus.fire('findings.changed', {
+      findings: this.all,
+      problem: this._problem,
+      stale: this._stale,
+    });
   }
 }
