@@ -84,9 +84,10 @@ export default class UpdateLabelHandler {
       if (hints.removeShape !== false) {
         this._modeling.removeShape(label, { unsetLabel: false });
       }
-      // An arc whose inscription was cleared falls back to the default weight
-      // of 1. A place or a transition has no such default: clearing its name
-      // leaves it without one.
+      // An arc whose weight was cleared falls back to the default weight of
+      // 1. A place or a transition has no such default: clearing its name
+      // leaves it without one. Before this distinction a place whose name was
+      // deleted was called "1", and that name travelled into every export.
       this.setText(element, is(element, `${MODELER_PREFIX}:Arc`) ? "1" : undefined);
       return;
     }

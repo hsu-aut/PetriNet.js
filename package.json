@@ -1,55 +1,41 @@
 {
-  "name": "@bptlab/openbpt-modeler-petri-net",
-  "version": "1.0.1",
-  "description": "Petri net modeling tool based on diagram-js for viewing and editing Petri nets in the browser. Supports the import and export of .pnml files.",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/MaximilianKoenig/ptn-js"
-  },
-  "publishConfig": {
-    "access": "public"
-  },
-  "author": "Maximilian König",
-  "license": "MIT",
-  "keywords": [
-    "Petri net",
-    "modeler",
-    "modeling",
-    "pnml",
-    "diagram-js"
-  ],
+  "name": "petrinet-js",
+  "version": "0.1.0",
+  "description": "Petri net modeler for the browser, based on diagram-js, with a lossless PNML reader and writer.",
+  "type": "module",
   "main": "index.js",
+  "license": "MIT",
   "files": [
+    "index.js",
+    "src",
     "assets",
-    "lib",
     "LICENSE",
-    "package.json",
     "README.md"
   ],
+  "keywords": [
+    "petri-net",
+    "pnml",
+    "diagram-js",
+    "modeler"
+  ],
   "scripts": {
-    "lint": "eslint . --ext .js",
-    "lint:fix": "eslint . --ext .js --fix",
-    "format": "prettier --write ."
+    "test": "node -e \"console.log('no tests yet; the analysis core brings its own')\"",
+    "demo": "node demo/serve.mjs"
   },
   "dependencies": {
     "bpmn-font": "^0.12.1",
-    "diagram-js": "^15.5.0",
-    "diagram-js-direct-editing": "^3.2.0",
+    "diagram-js": "^15.26.0",
+    "diagram-js-direct-editing": "^3.5.1",
     "ids": "^1.0.5",
     "inherits": "^2.0.4",
-    "jquery": "^3.7.1",
     "min-dash": "^4.2.3",
-    "min-dom": "^5.1.2",
+    "min-dom": "^5.3.0",
     "moddle": "^7.2.0",
     "moddle-xml": "^11.0.0",
     "object-refs": "^0.4.0",
-    "pnml-moddle-converter": "^1.0.2",
     "tiny-svg": "^4.1.4"
   },
   "devDependencies": {
-    "eslint": "^9.39.2",
-    "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-prettier": "^5.5.4",
-    "prettier": "^3.7.4"
+    "esbuild": "^0.25.0"
   }
 }

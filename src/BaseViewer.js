@@ -7,7 +7,7 @@ import { importDiagram } from "./import/Importer";
 import {
   convertModdleXmlToPnmlXml,
   convertPnmlXmlToModdleXml,
-} from "pnml-moddle-converter";
+} from "./pnml/index.js";
 import { assign, omit } from "min-dash";
 
 export default class BaseViewer extends Diagram {

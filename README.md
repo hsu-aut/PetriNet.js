@@ -1,39 +1,61 @@
-# ptn-js
+# petrinet-js
 
-Petri net modeling tool for viewing and editing Petri nets in the browser. Supports the import and export of .pnml files according to the [PNML standard](https://www.pnml.org/). Currently, only place transition nets are supported.
+A Petri net modeler for the browser: places, transitions, arcs with weights,
+markings, PNML import and export. Built on
+[diagram-js](https://github.com/bpmn-io/diagram-js).
 
-The tool is based on [diagram-js](https://github.com/bpmn-io/diagram-js) and took inspiration from [bpmn-js](https://github.com/bpmn-io/bpmn-js) and [fcm-js](https://github.com/bptlab/fCM-design-support).
+This is a fork of [ptn-js](https://github.com/bptlab/openbpt-modeler-petri-net)
+(`@bptlab/openbpt-modeler-petri-net`) by Maximilian König and the Business
+Process Technology group at the Hasso Plattner Institute, MIT licensed. The
+original is the Petri net modeler of the OpenBPT platform. Everything that made
+it work is theirs; the changes below are this fork's.
 
-## Usage
+## What this fork changes
 
-The modeler is available as an npm package.
-If you want to embed the modeler into your project, install the package as a dependency to your node project using:
+- **Its own PNML reader and writer** (`src/pnml/`). The upstream converter
+  builds XML with xmlbuilder2, which needs Node builtins and cannot be bundled
+  for a browser, and it drops node sizes and every bend point. This one is DOM
+  based and writes the graphics elements ISO/IEC 15909-2 provides for, so a
+  round trip keeps the drawing.
+- **Two defects fixed.** `UpdatePropertyHandler` declared no `$inject`, which
+  kills a minified build at start-up. `UpdateLabelHandler` wrote the text "1",
+  the default arc weight, whenever any label was cleared, so a place without a
+  name was called "1". Both are offered back to the original.
+- **Transition names below the box** instead of inside it, where a name longer
+  than the box was broken mid-word.
+- **Markings as dots**, up to five, a number above that, which is how Petri nets
+  are drawn.
+- **Unused code removed**: the file and HTML helpers, which nothing imported and
+  which were the only reason the package depended on jQuery.
+
+## Use
+
+```js
+import { PnModeler } from 'petrinet-js';
+import 'petrinet-js/assets/pn-js.css';
+
+const modeler = new PnModeler({ container: document.querySelector('#canvas') });
+await modeler.createNew();              // or: await modeler.importPNML(xml)
+const pnml = await modeler.savePNML();
+```
+
+## Demo
 
 ```bash
-npm i --save ptn-js
+npm install
+npm run demo
 ```
 
-To integrate the modeler, create a ptn-js instance, bind it to the canvas, and import a model or create a new one.
+Serves a page with the modeler, a file input for a `.pnml` file and a download
+button, on http://127.0.0.1:5180.
 
-```javascript
-import PnModeler from 'ptn-js/lib/Modeler';
-import "ptn-js/assets/pn-js.css";
+## Tests
 
-const xml = '...'; // your Petri net XML
-const canvas = '...'; // the HTML element the modeler should use as canvas
-const modeler = new PnModeler({
-  container: canvas,
-  keyboard: [
-    bindTo: canvas
-  ]
-});
-
-await modeler.importXML(xml);
-// await modeler.createNew(); Alternatively, this creates an empty diagram
-// await modeler.importPNML(pnml); Or you can import a .pnml file
-
-const xmlExport = (await modeler.saveXML()).xml;
-const pnmlExport = await modeler.savePNML();
+```bash
+npm test
 ```
 
-An example can be found [here](https://github.com/MaximilianKoenig/ptn-js-demo).
+## License
+
+MIT, see [LICENSE](LICENSE). The copyright of the original authors stands; this
+fork keeps it.
