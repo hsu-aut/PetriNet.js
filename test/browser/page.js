@@ -7,6 +7,8 @@ import { PnModeler } from '../../index.js';
 // ?properties=off leaves the properties panel out, as a host that does not want it would.
 const options = { container: document.getElementById('canvas') };
 if (new URLSearchParams(location.search).get('properties') === 'off') options.propertiesPanel = false;
+// ?worker=off keeps the searches on the page, as a host that cannot start workers would.
+if (new URLSearchParams(location.search).get('worker') === 'off') options.search = { worker: false };
 
 const modeler = new PnModeler(options);
 await modeler.createNew();

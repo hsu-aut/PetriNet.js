@@ -67,7 +67,7 @@ const result = await page.evaluate(async (text) => {
   // The net as the analysis core reads it: the arc that went through the
   // reference has to reach the real place, or the net is not the net.
   const net = modeler.get('findings');
-  net.analyse();
+  await net.analyse();
 
   return { once, twice, drawn, pageOf, findings: net.all.length };
 }, pnml);

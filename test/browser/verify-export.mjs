@@ -55,6 +55,12 @@ const empty = await page.evaluate(async () => {
   return { went, note: document.querySelector('.ptn-findings-note')?.textContent ?? null };
 });
 
+/** Waits until the searches have answered, and one tick more for what the page does with it. */
+const settled = async () => {
+  await page.evaluate(() => window.ptn.get('search').idle());
+  await page.waitForTimeout(50);
+};
+
 /** Clicks what the selector names and returns the file that came out of it. */
 async function saved(selector) {
   const [download] = await Promise.all([
@@ -66,10 +72,12 @@ async function saved(selector) {
 }
 
 await page.click('.ptn-findings-button');
+await settled();
 const findings = await saved('.ptn-findings-save');
 const findingsNote = await page.textContent('.ptn-findings-note');
 
 await page.click('.ptn-states-button');
+await settled();
 const dot = await saved('.ptn-states-save-dot');
 const markings = await saved('.ptn-states-save-csv');
 const statesNote = await page.textContent('.ptn-states-note');

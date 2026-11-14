@@ -20,6 +20,12 @@ await page.waitForFunction(() => window.ptnReady === true, null, { timeout: 1500
 
 const result = await page.evaluate(async () => {
   const modeler = window.ptn;
+  // The searches run in a worker now: wait until they have answered, and one tick more for what
+  // the page does with the answer.
+  const settle = async () => {
+    await modeler.get('search').idle();
+    await new Promise((resolve) => setTimeout(resolve, 30));
+  };
   const factory = modeler.get('elementFactory');
   const modeling = modeler.get('modeling');
   const findings = modeler.get('findings');
@@ -64,6 +70,7 @@ const result = await page.evaluate(async () => {
 
   const pnmlBefore = await modeler.savePNML();
   document.querySelector('.ptn-findings-button').click();
+  await settle();
   const analysed = {
     hidden: panelHidden(),
     title: document.querySelector('.ptn-findings-title')?.textContent ?? '',
@@ -83,7 +90,7 @@ const result = await page.evaluate(async () => {
     { rule: 'PT02', severity: 'error', element: mid.id, message: 'The place has no identifier.' },
   ]);
   const withHost = rows();
-  findings.analyse();
+  await findings.analyse();
   const afterSecond = rows();
 
   // Editing the net drops what the analysis computed rather than leaving a

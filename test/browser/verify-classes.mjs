@@ -53,7 +53,7 @@ const result = await page.evaluate(async () => {
   const t = transition(250, 100, 'Start');
   const u = transition(250, 220, 'Stop');
   connect(a, t); connect(t, b); connect(b, u); connect(u, a);
-  panel.analyse();
+  await panel.analyse();
   const cycle = rows();
   const classes = modeler.get('findings').all.length;
 
@@ -66,12 +66,12 @@ const result = await page.evaluate(async () => {
   const first = transition(200, 150, 'First');
   const second = transition(400, 150, 'Second');
   connect(i, first); connect(first, m); connect(m, second); connect(second, o);
-  panel.analyse();
+  await panel.analyse();
   const sound = rows();
 
   // 3. The same net, started with no token drawn: still checked from one token in In.
   modeling.updateProperty(i, 'initialMarking', 0, { rerender: true });
-  panel.analyse();
+  await panel.analyse();
   const undrawn = rows();
 
   return { cycle, classes, sound, undrawn };

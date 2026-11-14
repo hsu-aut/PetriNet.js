@@ -19,6 +19,12 @@ await page.waitForFunction(() => window.ptnReady === true, null, { timeout: 1500
 
 const result = await page.evaluate(async () => {
   const modeler = window.ptn;
+  // The searches run in a worker now: wait until they have answered, and one tick more for what
+  // the page does with the answer.
+  const settle = async () => {
+    await modeler.get('search').idle();
+    await new Promise((resolve) => setTimeout(resolve, 30));
+  };
   const factory = modeler.get('elementFactory');
   const modeling = modeler.get('modeling');
   const registry = modeler.get('elementRegistry');
@@ -60,6 +66,7 @@ const result = await page.evaluate(async () => {
   const before = { hidden: panel().hidden, nodes: nodes().length };
 
   document.querySelector('.ptn-states-button').click();
+  await settle();
   const shown = {
     hidden: panel().hidden,
     title: document.querySelector('.ptn-states-title')?.textContent ?? '',
@@ -103,6 +110,7 @@ const result = await page.evaluate(async () => {
   // A net the core cannot read says so instead of drawing nothing.
   modeling.updateProperty(idle, 'initialMarking', 'two', { rerender: true });
   document.querySelector('.ptn-states-button').click();
+  await settle();
   const refused = {
     hidden: panel().hidden,
     title: document.querySelector('.ptn-states-title')?.textContent ?? '',
@@ -117,6 +125,7 @@ const result = await page.evaluate(async () => {
   modeling.updateLabel(free, 'Produce');
   modeling.connect(free, busy, { type: 'ptn:Arc' });
   document.querySelector('.ptn-states-button').click();
+  await settle();
   const omegaNode = nodes().find((node) => /any number/.test(node.querySelector('title')?.textContent ?? ''));
   omegaNode?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
   const omega = {
@@ -140,6 +149,7 @@ const result = await page.evaluate(async () => {
   }
   const drawingStarted = Date.now();
   document.querySelector('.ptn-states-button').click();
+  await settle();
   const big = {
     milliseconds: Date.now() - drawingStarted,
     title: document.querySelector('.ptn-states-title')?.textContent ?? '',
@@ -150,12 +160,12 @@ const result = await page.evaluate(async () => {
   // The same net with the search cut off: what is on screen is then some of the
   // markings, not all of them, and the view says so instead of presenting a
   // part as the whole.
-  modeler.get('reachabilityView').show({ markings: 4 });
+  await modeler.get('reachabilityView').show({ markings: 4 });
   const cut = {
     title: document.querySelector('.ptn-states-title')?.textContent ?? '',
     nodes: nodes().length,
     complete: modeler.get('reachabilityView').state?.complete,
-    answer: modeler.get('reachabilityView').ask('P0 = 0'),
+    answer: await modeler.get('reachabilityView').ask('P0 = 0'),
   };
 
   return { before, shown, afterClick, afterFire, afterEdit, refused, omega, big, cut };

@@ -92,10 +92,14 @@ export default class FindingsPanel {
     });
   }
 
-  /** Analyses the net and opens the panel on the result. */
+  /**
+   * Opens the panel and analyses the net. The panel is open before the answer is
+   * there, so that the row that says it is working can be read.
+   * @returns {Promise<object[] | null>} as Findings.analyse()
+   */
   analyse() {
-    this._findings.analyse();
     this.open();
+    return this._findings.analyse();
   }
 
   /** Hands the findings over as a table. Returns where they went. */
@@ -153,10 +157,26 @@ export default class FindingsPanel {
     this._note.hidden = !message;
   }
 
-  _update({ findings, problem, stale }) {
+  _update({ findings, problem, stale, busy, stopped, progress }) {
+    this._busyNow = Boolean(busy);
+    this._button.disabled = this._busyNow;
+    if (this._busyNow) this._button.textContent = 'Analysing\u2026';
+
+    // The row that says it is working is redrawn on every report of progress; the
+    // list under it is not.
+    if (this._busyNow && this._list.querySelector('.ptn-findings-busy') && progress) {
+      this._busyText.textContent = busyText(progress);
+      return;
+    }
+
     this._list.replaceChildren();
     this._say(null);
-    this._markButton();
+    if (!this._busyNow) this._markButton();
+
+    if (this._busyNow) {
+      this._title.textContent = 'Findings';
+      this._list.appendChild(this._busyRow(progress));
+    }
 
     // The host's findings are listed under the reason too: they are what a
     // reader needs to fix the net, and the reason alone says only that it
@@ -168,14 +188,16 @@ export default class FindingsPanel {
       this._title.textContent = title(findings);
     }
 
-    if (findings.length === 0 && this._open && !problem) {
+    if (findings.length === 0 && this._open && !problem && !this._busyNow) {
       // "Nothing to report" would read as "the net is fine", which is not what
       // a dropped list means.
       this._list.appendChild(row({
         severity: 'information',
-        message: stale
-          ? 'The net changed, so the findings were dropped. Analyse again.'
-          : 'Nothing to report.',
+        message: stopped
+          ? 'The analysis was stopped. Analyse again.'
+          : stale
+            ? 'The net changed, so the findings were dropped. Analyse again.'
+            : 'Nothing to report.',
       }));
     }
 
@@ -194,12 +216,33 @@ export default class FindingsPanel {
     // The host's findings outlive an edit and the computed ones do not. A list
     // that holds only the first would read as an analysis that found nothing
     // more, so it says what is missing.
-    if (stale && findings.length > 0) {
+    if (stale && findings.length > 0 && !this._busyNow) {
       this._list.appendChild(row({
         severity: 'information',
         message: 'The net changed, so what Analyse found was dropped. Analyse again.',
       }));
     }
+  }
+
+  /** The row that says an analysis is running, with the way to stop it. */
+  _busyRow(progress) {
+    const item = document.createElement('li');
+    item.className = 'ptn-findings-busy';
+    item.setAttribute('role', 'status');
+
+    this._busyText = document.createElement('span');
+    this._busyText.className = 'ptn-findings-busy-text';
+    this._busyText.textContent = busyText(progress);
+
+    const stop = document.createElement('button');
+    stop.type = 'button';
+    stop.className = 'ptn-findings-stop';
+    stop.textContent = 'Stop';
+    stop.title = 'Stop the analysis';
+    stop.addEventListener('click', () => this._findings.cancel());
+
+    item.append(this._busyText, stop);
+    return item;
   }
 
   /** The buttons a finding offers, if any. */
@@ -295,6 +338,13 @@ function title(findings) {
   if (findings.length === 0) return 'Findings';
   if (errors === 0 && warnings === 0) return `Findings (${findings.length})`;
   return `Findings (${errors} error(s), ${warnings} warning(s), ${findings.length} in all)`;
+}
+
+const grouped = (number) => String(number).replace(/\B(?=(\d{3})+(?!\d))/g, '\u00A0');
+
+function busyText(progress) {
+  if (!progress || !progress.markings) return 'Analysing\u2026';
+  return `Analysing: ${grouped(progress.markings)} markings so far, at most ${grouped(progress.limit)}`;
 }
 
 function row(finding) {

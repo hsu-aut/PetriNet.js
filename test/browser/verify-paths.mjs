@@ -20,6 +20,12 @@ await page.waitForFunction(() => window.ptnReady === true, null, { timeout: 1500
 
 const result = await page.evaluate(async () => {
   const modeler = window.ptn;
+  // The searches run in a worker now: wait until they have answered, and one tick more for what
+  // the page does with the answer.
+  const settle = async () => {
+    await modeler.get('search').idle();
+    await new Promise((resolve) => setTimeout(resolve, 30));
+  };
   const factory = modeler.get('elementFactory');
   const modeling = modeler.get('modeling');
   const simulation = modeler.get('simulation');
@@ -63,6 +69,7 @@ const result = await page.evaluate(async () => {
 
   // The deadlock finding offers the way into the deadlock.
   document.querySelector('.ptn-findings-button').click();
+  await settle();
   const deadlockRow = [...document.querySelectorAll('.ptn-finding')]
     .find((item) => item.querySelector('.ptn-finding-rule')?.textContent === 'PT15');
   const offered = deadlockRow?.querySelector('.ptn-finding-action')?.textContent ?? null;
@@ -89,19 +96,21 @@ const result = await page.evaluate(async () => {
 
   // The query line answers a marking a reader types.
   document.querySelector('.ptn-states-button').click();
-  const ask = (text) => {
+  await settle();
+  const ask = async (text) => {
     const line = document.querySelector('.ptn-states-query');
     line.querySelector('.ptn-states-query-input').value = text;
     line.requestSubmit();
+    await settle();
     return stateNote();
   };
 
-  const reachable = ask('Mid = 1');
+  const reachable = await ask('Mid = 1');
   const afterAsk = { marking: marking(), running: simulation.active };
-  const unreachable = ask('Out = 1');
-  const unknownPlace = ask('Nowhere = 1');
-  const nonsense = ask('Mid = two');
-  const initial = ask('In = 1');
+  const unreachable = await ask('Out = 1');
+  const unknownPlace = await ask('Nowhere = 1');
+  const nonsense = await ask('Mid = two');
+  const initial = await ask('In = 1');
 
   simulation.stop();
   const pnmlAfter = await modeler.savePNML();

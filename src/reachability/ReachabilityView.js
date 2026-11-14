@@ -18,6 +18,8 @@ import { explore, OMEGA } from '../net/explore.js';
 import { netFromElements } from '../net/fromDiagram.js';
 import { readNet } from '../net/model.js';
 import { parseQuery, pathTo, wayTo } from '../net/paths.js';
+import { runSearch } from '../search/run.js';
+import { fromWire } from '../search/wire.js';
 import { markingsToCsv, toDot } from '../net/report.js';
 import { nameFor, offerFile } from '../ui/download.js';
 import { layoutStateSpace } from './layout.js';
@@ -45,6 +47,9 @@ export default class ReachabilityView {
     this._canvas = canvas;
     this._elementRegistry = elementRegistry;
     this._simulation = simulation;
+    this._search = injector.get('search', false);
+    this._pending = null;
+    this._runId = 0;
     this._result = null;
     this._net = null;
 
@@ -70,6 +75,15 @@ export default class ReachabilityView {
       save.addEventListener('click', () => this.save(kind));
       head.appendChild(save);
     }
+
+    this._stop = document.createElement('button');
+    this._stop.type = 'button';
+    this._stop.className = 'ptn-states-stop';
+    this._stop.textContent = 'Stop';
+    this._stop.title = 'Stop the search';
+    this._stop.hidden = true;
+    this._stop.addEventListener('click', () => this.cancel());
+    head.appendChild(this._stop);
 
     const close = document.createElement('button');
     close.type = 'button';
@@ -100,6 +114,12 @@ export default class ReachabilityView {
 
     // A changed net makes the graph wrong, and a wrong graph is worse than none.
     eventBus.on(['commandStack.changed', 'import.done'], () => this.close());
+
+    eventBus.on('search.progress', (event) => {
+      if (this._pending && event.kind === 'explore') {
+        this._title.textContent = `Searching: ${count(event.markings, 'marking')}`;
+      }
+    });
 
     // While the net runs, the marking it is in is the one to point out.
     eventBus.on('simulation.changed', () => this._markCurrent());
@@ -132,28 +152,88 @@ export default class ReachabilityView {
   }
 
   /**
-   * Explores the net on the canvas and draws its state space.
+   * Explores the net on the canvas and draws its state space. The search runs in
+   * a worker where there is one, and the view says it is searching and can stop it.
+   *
    * @param limits passed to the search; see explore(). A host with more time
    *   than a browser tab, or a test that wants the search cut off, says so here.
+   * @returns {Promise<object | null>} what `state` says when it is drawn, or null
+   *   where the search was stopped or the net changed while it ran.
    */
   show(limits = {}) {
+    // A search that is already running for the same net is the answer.
+    if (this._pending) return this._pending;
+
+    let net;
     try {
-      const net = readNet(netFromElements(this._elementRegistry.getAll()));
-      this._result = explore(net, limits);
-      this._net = net;
-      if (this._result.markings.length > MOST_NODES) this._tooBig();
-      else this._draw();
+      net = readNet(netFromElements(this._elementRegistry.getAll()));
     } catch (error) {
       this._result = null;
       this._net = null;
       this._title.textContent = 'The net could not be read';
       this._picture.replaceChildren(text(error.message));
+      this._container.hidden = false;
+      return Promise.resolve(null);
     }
 
+    this._runId += 1;
+    const run = this._runId;
+    this._result = null;
+    this._net = null;
+    this._title.textContent = 'Searching\u2026';
+    this._picture.replaceChildren(text('The search for the reachable markings is running. The canvas stays usable.', 'ptn-states-note'));
+    this._stop.hidden = false;
     this._container.hidden = false;
+
+    const pending = (async () => {
+      let answer;
+      try {
+        answer = await (this._search
+          ? this._search.run('explore', net, limits)
+          : Promise.resolve(runSearch('explore', net, limits)));
+      } catch (error) {
+        if (run === this._runId) this._failed(error);
+        return null;
+      } finally {
+        if (run === this._runId) {
+          this._pending = null;
+          this._stop.hidden = true;
+        }
+      }
+
+      if (run !== this._runId || answer === null) return null;
+
+      this._result = fromWire(answer);
+      this._net = net;
+      if (this._result.markings.length > MOST_NODES) this._tooBig();
+      else this._draw();
+      return this.state;
+    })();
+
+    this._pending = pending;
+    return pending;
+  }
+
+  /** Stops a search that is running. */
+  cancel() {
+    if (!this._pending) return;
+    this._runId += 1;
+    this._pending = null;
+    this._stop.hidden = true;
+    this._search?.cancel('explore');
+    this._title.textContent = 'The search was stopped';
+    this._picture.replaceChildren(text('The search was stopped. Press State space to search again.', 'ptn-states-note'));
+  }
+
+  _failed(error) {
+    this._result = null;
+    this._net = null;
+    this._title.textContent = 'The net could not be read';
+    this._picture.replaceChildren(text(error.message));
   }
 
   close() {
+    this.cancel();
     this._container.hidden = true;
   }
 
@@ -162,11 +242,12 @@ export default class ReachabilityView {
    * which firings. The way is loaded into the simulation rather than fired, so
    * the reader decides whether to watch it.
    *
-   * @returns {string} what was said, which is what a test reads.
+   * @returns {Promise<string>} what was said, which is what a test reads.
    */
-  ask(question) {
-    if (!this._result) this.show();
-    if (!this._result) return this._note('The net could not be read, so nothing can be asked about it.');
+  async ask(question) {
+    // The question is answered when the search has finished, not before.
+    if (!this._result) await this.show();
+    if (!this._result) return this._note('The net could not be read, or the search was stopped, so nothing can be asked about it.');
 
     const { wanted, problem } = parseQuery(question, this._net);
     if (problem) return this._note(problem);

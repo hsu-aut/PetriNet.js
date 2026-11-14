@@ -20,6 +20,12 @@ await page.waitForFunction(() => window.ptnReady === true, null, { timeout: 1500
 
 const result = await page.evaluate(async () => {
   const modeler = window.ptn;
+  // The searches run in a worker now: wait until they have answered, and one tick more for what
+  // the page does with the answer.
+  const settle = async () => {
+    await modeler.get('search').idle();
+    await new Promise((resolve) => setTimeout(resolve, 30));
+  };
   const factory = modeler.get('elementFactory');
   const modeling = modeler.get('modeling');
   const simulation = modeler.get('simulation');
@@ -60,6 +66,7 @@ const result = await page.evaluate(async () => {
 
   const pnmlBefore = await modeler.savePNML();
   document.querySelector('.ptn-findings-button').click();
+  await settle();
 
   const before = { rings: rings(), marked: marked() };
 
@@ -94,6 +101,7 @@ const result = await page.evaluate(async () => {
   modeling.updateLabel(twice, '2');
 
   document.querySelector('.ptn-findings-button').click();
+  await settle();
   actionOn('PT18', 'Mark')?.click();
   const weighted = {
     rings: rings(),
@@ -121,6 +129,7 @@ const result = await page.evaluate(async () => {
   modeling.connect(ret, empty, { type: 'ptn:Arc' });
 
   document.querySelector('.ptn-findings-button').click();
+  await settle();
   const unfireable = {
     hasRow: Boolean(rowFor('PT19')),
     buttons: [...rowFor('PT19')?.querySelectorAll('.ptn-finding-action') ?? []].map((b) => b.textContent),

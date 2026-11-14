@@ -42,6 +42,7 @@
   "scripts": {
     "test": "node --test src/net/ src/reachability/ src/layout/ src/findings/ src/properties/ src/search/",
     "test:browser": "node test/browser/run.mjs",
+    "build:worker": "node scripts/build-worker.mjs",
     "pretest:browser": "playwright install chromium",
     "demo": "node demo/serve.mjs"
   },

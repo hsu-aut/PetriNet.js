@@ -1,151 +1,236 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
-import { analyse } from '../net/analyse.js';
-import { build } from '../net/builders.js';
-import { explore, OMEGA } from '../net/explore.js';
+import { afterEach, test } from 'node:test';
 import * as fixtures from '../net/fixtures.js';
-import { initialMarking, readNet } from '../net/model.js';
-import { pathTo, pathToDeadlock, shortestWays, wayTo } from '../net/paths.js';
-import { sequenceFor } from '../net/invariants.js';
-import { plainLimits, runSearch } from './run.js';
-import { fromWire, toWire } from './wire.js';
+import { readNet } from '../net/model.js';
+import { runSearch } from './run.js';
+import Search from './Search.js';
 
-const nets = Object.entries(fixtures).filter(([, value]) => value && Array.isArray(value.places))
-  .map(([name, data]) => [name, readNet(data)]);
-
-test('there are nets to test with', () => assert.ok(nets.length >= 5));
-
-for (const [name, net] of nets) {
-  test(`${name}: the wire form survives JSON and gives the exploration back`, () => {
-    const result = explore(net, { milliseconds: Infinity });
-    const wire = toWire(result, net);
-    const through = JSON.parse(JSON.stringify(wire));
-    assert.deepEqual(through, wire, 'something in the wire form does not survive JSON');
-
-    const back = fromWire(through);
-    assert.deepEqual(back, result);
-    // Every place has an entry in every marking, as in a marking the search made itself.
-    for (const { marking } of back.markings) assert.deepEqual([...marking.keys()], net.places.map((place) => place.id));
-  });
-
-  test(`${name}: the answer of the analysis equals the analysis, and is JSON`, () => {
-    const direct = analyse(net, { milliseconds: Infinity });
-    const answer = runSearch('analyse', net, { milliseconds: Infinity });
-    assert.deepEqual(JSON.parse(JSON.stringify(answer)), answer);
-    assert.equal(answer.complete, direct.complete);
-    assert.equal(answer.markings, direct.result.markings.length);
-    assert.deepEqual(answer.classes, direct.classes);
-    assert.deepEqual(answer.workflow, direct.workflow);
-
-    answer.findings.forEach((finding, i) => {
-      const { way, run, ...rest } = finding;
-      assert.deepEqual(rest, direct.findings[i]);
-      const original = direct.findings[i];
-      assert.deepEqual(way, original.marking ? (pathTo(direct.result, original.marking)?.transitions ?? null) : null);
-      assert.deepEqual(run, original.firings ? sequenceFor(net, new Map(original.firings), initialMarking(net)) : null);
-    });
-  });
+/** The two methods of the event bus the service uses. */
+function bus() {
+  const handlers = new Map();
+  return {
+    on(names, handler) {
+      for (const name of [].concat(names)) handlers.set(name, [...(handlers.get(name) ?? []), handler]);
+    },
+    fire(name, event) {
+      for (const handler of handlers.get(name) ?? []) handler(event);
+    },
+  };
 }
 
-test('omega survives the wire and comes back as Infinity', () => {
-  const net = readNet(fixtures.producer);
-  const result = explore(net, { milliseconds: Infinity });
-  assert.ok(result.markings.some(({ marking }) => [...marking.values()].includes(OMEGA)), 'the test net has no omega');
-  const wire = JSON.parse(JSON.stringify(toWire(result, net)));
-  assert.ok(wire.keys.some((key) => key.includes('omega')));
-  assert.deepEqual(fromWire(wire), result);
-});
+const net = readNet(fixtures.deadlock);
+const limits = { milliseconds: Infinity };
 
-test('the answers of the analysis name a way into a deadlock and the run of a transition invariant', () => {
-  const stuck = runSearch('analyse', readNet(fixtures.deadlock), { milliseconds: Infinity });
-  const deadlock = stuck.findings.find((finding) => finding.rule === 'PT15');
-  assert.ok(deadlock.way && deadlock.way.length > 0, 'no way into the deadlock');
+let fakes = [];
 
-  const loop = runSearch('analyse', readNet(fixtures.loop), { milliseconds: Infinity });
-  const invariant = loop.findings.find((finding) => finding.rule === 'PT19');
-  assert.ok(invariant.run && invariant.run.length > 0, 'no run of the transition invariant');
-});
+/**
+ * A worker that answers on the next tick with what runSearch gives, or as the
+ * test says: `FakeWorker.mode` is 'normal', 'silent' (never answers), 'throws'
+ * (the constructor throws), 'fails' (an error before ready) or 'broken' (a
+ * message of type error for every request).
+ */
+class FakeWorker {
+  static mode = 'normal';
 
-test('a clock and a callback are left out of the limits that travel', () => {
-  assert.deepEqual(plainLimits({ markings: 5, milliseconds: null, now: () => 1, progress: () => {} }), { markings: 5, milliseconds: null });
-});
-
-test('an unknown search is refused', () => {
-  assert.throws(() => runSearch('nothing', readNet(fixtures.loop)), /unknown search/);
-});
-
-// ── one walk instead of one per marking ─────────────────────────────────────
-
-/** The way the paths used to be found: a walk over the edges for each marking asked for. */
-function oldPathTo(result, key) {
-  if (key === result.initial) return { transitions: [], markings: [result.initial] };
-  const out = new Map();
-  for (const edge of result.edges) {
-    if (!out.has(edge.from)) out.set(edge.from, []);
-    out.get(edge.from).push(edge);
+  constructor() {
+    if (FakeWorker.mode === 'throws') throw new Error('workers are not allowed here');
+    this.terminated = false;
+    fakes.push(this);
+    setTimeout(() => {
+      if (this.terminated) return;
+      if (FakeWorker.mode === 'fails') this.onerror?.({ message: 'blocked by policy', preventDefault() {} });
+      else this.onmessage?.({ data: { type: 'ready' } });
+    }, 0);
   }
-  const cameFrom = new Map();
-  const queue = [result.initial];
-  const seen = new Set([result.initial]);
-  while (queue.length) {
-    const from = queue.shift();
-    for (const edge of out.get(from) ?? []) {
-      if (seen.has(edge.to)) continue;
-      seen.add(edge.to);
-      cameFrom.set(edge.to, edge);
-      if (edge.to === key) {
-        const transitions = [];
-        const markings = [key];
-        let at = key;
-        while (at !== result.initial) {
-          const e = cameFrom.get(at);
-          transitions.unshift(e.transition);
-          markings.unshift(e.from);
-          at = e.from;
-        }
-        return { transitions, markings };
+
+  postMessage({ type, id, net: n, limits: l }) {
+    if (FakeWorker.mode === 'silent') return;
+    setTimeout(() => {
+      if (this.terminated) return;
+      if (FakeWorker.mode === 'broken') {
+        this.onmessage?.({ data: { type: 'error', id, message: 'a defect in the core' } });
+        return;
       }
-      queue.push(edge.to);
-    }
+      this.onmessage?.({ data: { type: 'progress', id, markings: 3, edges: 2 } });
+      this.onmessage?.({ data: { type: 'result', id, answer: JSON.parse(JSON.stringify(runSearch(type, n, l))) } });
+    }, 0);
   }
-  return null;
-}
 
-for (const [name, net] of nets) {
-  for (const limits of [{ milliseconds: Infinity }, { markings: 4, milliseconds: Infinity }]) {
-    test(`${name}: one walk gives the same ways as one walk per marking (limit ${limits.markings ?? 'none'})`, () => {
-      const result = explore(net, limits);
-      for (const { key } of result.markings) assert.deepEqual(pathTo(result, key), oldPathTo(result, key), key);
-      assert.equal(shortestWays(result), shortestWays(result), 'the walk is not kept with its result');
-    });
+  terminate() {
+    this.terminated = true;
   }
 }
 
-test('a deadlock and a query get the same answers as before', () => {
-  const result = explore(readNet(fixtures.deadlock), { milliseconds: Infinity });
-  const found = pathToDeadlock(result);
-  assert.deepEqual({ transitions: found.transitions, markings: found.markings }, oldPathTo(result, found.key));
-  assert.ok(wayTo(result, new Map([['mid', 1]])));
+const withWorkers = () => {
+  FakeWorker.mode = 'normal';
+  fakes = [];
+  globalThis.Worker = FakeWorker;
+};
+
+afterEach(() => {
+  delete globalThis.Worker;
+  FakeWorker.mode = 'normal';
 });
 
-test('the progress hook is called, ends with the final count and changes no result', () => {
-  // 2^12 markings: twelve independent places that lose their token.
-  const places = {};
-  const transitions = [];
-  const arcs = [];
-  for (let i = 0; i < 12; i += 1) {
-    places[`p${i}`] = 1;
-    transitions.push(`t${i}`);
-    arcs.push([`p${i}`, `t${i}`]);
+test('without Worker the searches run on the page and give the answer of runSearch', async () => {
+  const search = new Search(bus(), undefined);
+  assert.equal(search.mode, 'inline');
+  assert.deepEqual(await search.run('analyse', net, limits), runSearch('analyse', net, limits));
+});
+
+test('config { worker: false } keeps the search on the page although a worker is there', async () => {
+  withWorkers();
+  const search = new Search(bus(), { worker: false });
+  assert.equal(search.mode, 'inline');
+  await search.run('explore', net, limits);
+  assert.equal(fakes.length, 0);
+});
+
+test('with a worker the answer comes from it, and progress is passed on', async () => {
+  withWorkers();
+  const events = bus();
+  const search = new Search(events, undefined);
+  assert.equal(search.mode, 'worker');
+
+  const progress = [];
+  events.on('search.progress', (state) => progress.push(state));
+  const answer = await search.run('analyse', net, limits);
+
+  assert.deepEqual(answer, JSON.parse(JSON.stringify(runSearch('analyse', net, limits))));
+  assert.deepEqual(progress, [{ kind: 'analyse', markings: 3, edges: 2 }]);
+  assert.equal(fakes.length, 1);
+});
+
+test('one worker per kind of search, kept between requests', async () => {
+  withWorkers();
+  const search = new Search(bus(), undefined);
+  await search.run('analyse', net, limits);
+  await search.run('analyse', net, limits);
+  await search.run('explore', net, limits);
+  assert.equal(fakes.length, 2);
+});
+
+test('a change of the net stops the search, ends its worker and resolves to null', async () => {
+  withWorkers();
+  FakeWorker.mode = 'silent';
+  const events = bus();
+  const search = new Search(events, undefined);
+
+  const running = search.run('analyse', net, limits);
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.equal(search.busy('analyse'), true);
+
+  events.fire('commandStack.changed', {});
+  assert.equal(await running, null);
+  assert.equal(search.busy(), false);
+  assert.equal(fakes[0].terminated, true);
+
+  // The next request starts a fresh worker and is answered.
+  FakeWorker.mode = 'normal';
+  assert.ok(await search.run('analyse', net, limits));
+  assert.equal(fakes.length, 2);
+});
+
+test('an import and a cleared diagram stop a search as well', async () => {
+  withWorkers();
+  FakeWorker.mode = 'silent';
+  for (const name of ['import.done', 'diagram.clear']) {
+    const events = bus();
+    const search = new Search(events, undefined);
+    const running = search.run('explore', net, limits);
+    events.fire(name, {});
+    assert.equal(await running, null, name);
   }
-  const net = readNet(build(places, transitions, arcs));
+});
 
-  const calls = [];
-  const watched = explore(net, { milliseconds: Infinity, progress: (state) => calls.push(state) });
-  const plain = explore(net, { milliseconds: Infinity });
+test('the same question while it is answered gets the same promise, and another one replaces it', async () => {
+  withWorkers();
+  FakeWorker.mode = 'silent';
+  const search = new Search(bus(), undefined);
 
-  assert.deepEqual(watched, plain);
-  assert.ok(calls.length >= 4000 / 500, `only ${calls.length} reports for ${watched.markings.length} markings`);
-  assert.deepEqual(calls[calls.length - 1], { markings: watched.markings.length, edges: watched.edges.length });
-  assert.ok(calls.every((state, i) => i === 0 || state.markings >= calls[i - 1].markings), 'progress went backwards');
+  const first = search.run('analyse', net, limits);
+  assert.equal(search.run('analyse', net, limits), first);
+
+  const other = search.run('analyse', net, { ...limits, markings: 5 });
+  assert.notEqual(other, first);
+  assert.equal(await first, null, 'the question it replaced was not stopped');
+  search.cancel();
+  assert.equal(await other, null);
+});
+
+test('a request with its own clock runs on the page, because a clock cannot be sent', async () => {
+  withWorkers();
+  const search = new Search(bus(), undefined);
+  let ticks = 0;
+  const answer = await search.run('explore', net, { milliseconds: 1e9, now: () => (ticks += 1) });
+  assert.ok(answer);
+  assert.equal(fakes.length, 0);
+});
+
+test('a worker that cannot be created: the search falls back to the page and warns once', async (t) => {
+  withWorkers();
+  FakeWorker.mode = 'throws';
+  const warnings = [];
+  t.mock.method(console, 'warn', (message) => warnings.push(message));
+
+  const search = new Search(bus(), undefined);
+  assert.ok(await search.run('analyse', net, limits));
+  assert.ok(await search.run('explore', net, limits));
+  assert.equal(search.mode, 'inline');
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /not in a worker/);
+});
+
+test('an error before the worker is ready falls back to the page, and the request is still answered', async (t) => {
+  withWorkers();
+  FakeWorker.mode = 'fails';
+  const warnings = [];
+  t.mock.method(console, 'warn', (message) => warnings.push(message));
+
+  const search = new Search(bus(), undefined);
+  const answer = await search.run('analyse', net, limits);
+  assert.deepEqual(answer, runSearch('analyse', net, limits));
+  assert.equal(search.mode, 'inline');
+  assert.equal(warnings.length, 1);
+});
+
+test('an error of the core is a rejection, not a hang', async () => {
+  withWorkers();
+  FakeWorker.mode = 'broken';
+  const search = new Search(bus(), undefined);
+  await assert.rejects(search.run('analyse', net, limits), /a defect in the core/);
+  assert.equal(search.busy(), false);
+});
+
+test('idle resolves when the last search has ended', async () => {
+  withWorkers();
+  const search = new Search(bus(), undefined);
+  assert.equal(await search.idle(), undefined);
+
+  const running = search.run('analyse', net, limits);
+  let idle = false;
+  search.idle().then(() => { idle = true; });
+  assert.equal(idle, false);
+  await running;
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(idle, true);
+});
+
+test('the end of the modeler stops the searches and ends the workers', async () => {
+  withWorkers();
+  FakeWorker.mode = 'silent';
+  const events = bus();
+  const search = new Search(events, undefined);
+  const running = search.run('analyse', net, limits);
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  events.fire('diagram.destroy', {});
+  assert.equal(await running, null);
+  assert.ok(fakes.every((fake) => fake.terminated));
+});
+
+test('workerSource.js is what the worker builds to now', async () => {
+  const { built } = await import('../../scripts/build-worker.mjs');
+  const { readFile } = await import('node:fs/promises');
+  const current = (await readFile(new URL('./workerSource.js', import.meta.url), 'utf8')).replace(/\r\n/g, '\n');
+  assert.equal(current, await built(), 'run `npm run build:worker`');
 });

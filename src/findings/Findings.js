@@ -8,29 +8,34 @@
  * kinds end up in one list in the order a reader wants them, errors first,
  * because a reader does not care which half of a program found a problem.
  */
-import { analyse } from '../net/analyse.js';
 import { netFromElements } from '../net/fromDiagram.js';
-import { sequenceFor } from '../net/invariants.js';
-import { initialMarking, readNet } from '../net/model.js';
-import { pathTo } from '../net/paths.js';
+import { readNet } from '../net/model.js';
+import { runSearch } from '../search/run.js';
 
 const ORDER = { error: 0, warning: 1, information: 2 };
 
 export default class Findings {
-  static $inject = ['eventBus', 'elementRegistry'];
+  static $inject = ['eventBus', 'elementRegistry', 'injector'];
 
-  constructor(eventBus, elementRegistry) {
+  constructor(eventBus, elementRegistry, injector) {
     this._eventBus = eventBus;
     this._elementRegistry = elementRegistry;
+    // The search runs in a worker where the modeler has one; without the service it
+    // runs here, one answer at a time.
+    this._search = injector?.get('search', false) ?? null;
+    this._busy = false;
+    this._stopped = false;
+    this._run = 0;
+    this._limit = null;
+    this._progress = null;
 
     this._own = [];
     this._fromHost = [];
     this._problem = null;
     this._stale = false;
-    // The exploration the findings came from, kept so that a finding about a
-    // marking can be turned into the way to that marking.
-    this._analysis = null;
+    // The net the findings are about, as the core read it.
     this._net = null;
+    this._answer = null;
 
     // An edited net makes the computed findings stale, which is worse than no
     // findings: a reader trusts a list that is on the screen. Saying so is not
@@ -43,12 +48,27 @@ export default class Findings {
     // about the net as it was, and a reader who has fixed it must not be told
     // the old one.
     eventBus.on(['commandStack.changed', 'import.done'], () => {
+      // A search still running is about the net as it was. It is ended, and the
+      // list says why there is nothing in it.
+      if (this._busy) {
+        this._end();
+        this._stale = true;
+        this._changed();
+        return;
+      }
+
       if (!this._own.length && !this._fromHost.length && !this._problem) return;
 
       if (this._own.length || this._problem) {
         this._dropOwn();
         this._stale = true;
       }
+      this._changed();
+    });
+
+    eventBus.on('search.progress', (event) => {
+      if (!this._busy || event.kind !== 'analyse') return;
+      this._progress = { markings: event.markings, edges: event.edges };
       this._changed();
     });
   }
@@ -85,28 +105,95 @@ export default class Findings {
     return this._problem;
   }
 
+  /** Whether an analysis is running. */
+  get busy() {
+    return this._busy;
+  }
+
+  /** Whether the last analysis was stopped by the reader. */
+  get stopped() {
+    return this._stopped;
+  }
+
+  /** How far a running analysis is, `{ markings, edges }`, and the most markings it will look at. */
+  get progress() {
+    return this._busy ? { ...(this._progress ?? { markings: 0, edges: 0 }), limit: this._limit } : null;
+  }
+
   /**
-   * Reads the net from the canvas and analyses it.
+   * Reads the net from the canvas and analyses it, in a worker where there is
+   * one, so that the canvas stays usable meanwhile.
+   *
    * @param limits passed to the analysis core; see explore().
+   * @returns {Promise<object[] | null>} the computed findings, or null where the
+   *   analysis was stopped, or the net changed while it ran.
    */
-  analyse(limits = {}) {
+  async analyse(limits = {}) {
+    let net;
     try {
-      const net = readNet(netFromElements(this._elementRegistry.getAll()));
-      this._analysis = analyse(net, limits);
-      this._net = net;
-      this._own = this._analysis.findings;
-      this._problem = null;
-      this._stale = false;
+      net = readNet(netFromElements(this._elementRegistry.getAll()));
     } catch (error) {
-      this._analysis = null;
-      this._net = null;
-      this._own = [];
+      this._end();
+      this._dropOwn();
       this._problem = error.message;
       this._stale = false;
+      this._stopped = false;
+      this._changed();
+      return [];
     }
 
+    // The previous list is about the net as it was a moment ago. It goes, and the
+    // reader sees that something is being done.
+    this._end();
+    const run = this._run;
+    this._dropOwn();
+    this._stale = false;
+    this._stopped = false;
+    this._busy = true;
+    this._progress = null;
+    this._limit = limits.markings ?? 20000;
+    this._changed();
+
+    let answer;
+    try {
+      answer = await (this._search
+        ? this._search.run('analyse', net, limits)
+        : Promise.resolve(runSearch('analyse', net, limits)));
+    } catch (error) {
+      if (run !== this._run) return null;
+      this._busy = false;
+      this._problem = error.message;
+      this._changed();
+      return [];
+    }
+
+    // Stopped, or the net changed: what ended it has said so already.
+    if (run !== this._run || answer === null) return null;
+
+    this._busy = false;
+    this._net = net;
+    this._own = answer.findings;
+    this._answer = answer;
+    this._problem = null;
+    this._stale = false;
     this._changed();
     return this._own;
+  }
+
+  /** Stops a running analysis. The list says that it was stopped. */
+  cancel() {
+    if (!this._busy) return;
+    this._end();
+    this._stopped = true;
+    this._search?.cancel('analyse');
+    this._changed();
+  }
+
+  /** What a running analysis is no longer wanted for: its answer, when it comes, is dropped. */
+  _end() {
+    this._run += 1;
+    this._busy = false;
+    this._progress = null;
   }
 
   /**
@@ -131,6 +218,9 @@ export default class Findings {
 
   /** Drops everything: the computed findings, the host's, and the reason. */
   clear() {
+    this._search?.cancel('analyse');
+    this._end();
+    this._stopped = false;
     this._dropOwn();
     this._fromHost = [];
     this._stale = false;
@@ -141,7 +231,7 @@ export default class Findings {
   _dropOwn() {
     this._own = [];
     this._problem = null;
-    this._analysis = null;
+    this._answer = null;
     this._net = null;
   }
 
@@ -156,8 +246,8 @@ export default class Findings {
    * search recorded no way into it.
    */
   wayTo(finding) {
-    if (!finding?.marking || !this._analysis) return null;
-    return pathTo(this._analysis.result, finding.marking);
+    // The search worked it out where it still had the state space.
+    return Array.isArray(finding?.way) ? { transitions: finding.way } : null;
   }
 
   /**
@@ -166,8 +256,7 @@ export default class Findings {
    * them is fireable.
    */
   runFor(finding) {
-    if (!finding?.firings || !this._net) return null;
-    return sequenceFor(this._net, new Map(finding.firings), initialMarking(this._net));
+    return Array.isArray(finding?.run) ? finding.run : null;
   }
 
   /** Whether the element a finding is about is on the canvas. */
@@ -189,6 +278,9 @@ export default class Findings {
       findings: this.all,
       problem: this._problem,
       stale: this._stale,
+      busy: this._busy,
+      stopped: this._stopped,
+      progress: this.progress,
     });
   }
 }

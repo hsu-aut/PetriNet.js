@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import Findings from './Findings.js';
 
 /** The two things of diagram-js the service touches, as far as it touches them. */
-function fixture(elements = []) {
+function fixture(elements = [], search = null) {
   const listeners = new Map();
   const fired = [];
   const registry = new Map(elements.map((element) => [element.id, element]));
@@ -26,11 +26,13 @@ function fixture(elements = []) {
     get: (id) => registry.get(id),
   };
 
-  const findings = new Findings(eventBus, elementRegistry);
+  const injector = { get: (name) => (name === 'search' ? search ?? undefined : undefined) };
+  const findings = new Findings(eventBus, elementRegistry, injector);
   return {
     findings,
     registry,
     fired,
+    eventBus,
     edit: () => eventBus.fire('commandStack.changed', {}),
     imported: () => eventBus.fire('import.done', {}),
     last: () => fired.filter(([name]) => name === 'findings.changed').at(-1)?.[1],
@@ -58,9 +60,9 @@ const hostFinding = (over = {}) => ({
   ...over,
 });
 
-test('findings of the host come out beside the computed ones, errors first', () => {
+test('findings of the host come out beside the computed ones, errors first', async () => {
   const { findings } = fixture(stuck());
-  findings.analyse();
+  await findings.analyse();
   findings.setHostFindings([hostFinding()]);
 
   const all = findings.all;
@@ -69,9 +71,9 @@ test('findings of the host come out beside the computed ones, errors first', () 
   assert.ok(all.some((finding) => finding.rule.startsWith('PT1')), 'the computed findings are still there');
 });
 
-test('an edit drops the computed findings and keeps the host\'s', () => {
+test('an edit drops the computed findings and keeps the host\'s', async () => {
   const { findings, edit } = fixture(stuck());
-  findings.analyse();
+  await findings.analyse();
   findings.setHostFindings([hostFinding()]);
 
   edit();
@@ -81,9 +83,9 @@ test('an edit drops the computed findings and keeps the host\'s', () => {
   assert.equal(findings.net, null);
 });
 
-test('an import drops the computed findings and keeps the host\'s', () => {
+test('an import drops the computed findings and keeps the host\'s', async () => {
   const { findings, imported } = fixture(stuck());
-  findings.analyse();
+  await findings.analyse();
   findings.setHostFindings([hostFinding()]);
 
   imported();
@@ -133,12 +135,12 @@ test('a finding about an element that is gone is not a link', () => {
   assert.equal(findings.show(findings.all[0]), false);
 });
 
-test('analysing again does not drop the host\'s findings', () => {
+test('analysing again does not drop the host\'s findings', async () => {
   const { findings } = fixture(stuck());
   findings.setHostFindings([hostFinding()]);
 
-  findings.analyse();
-  findings.analyse();
+  await findings.analyse();
+  await findings.analyse();
 
   assert.equal(findings.all.filter((finding) => finding.rule === 'PT05').length, 1);
 });
@@ -158,9 +160,9 @@ test('the host replaces its findings with a new list, or empties them', () => {
   assert.equal(findings.host.length, 0);
 });
 
-test('the counts are the host\'s own, not those of the analysis', () => {
+test('the counts are the host\'s own, not those of the analysis', async () => {
   const { findings } = fixture(stuck());
-  findings.analyse();
+  await findings.analyse();
   findings.setHostFindings([
     hostFinding(),
     hostFinding({ severity: 'warning' }),
@@ -182,9 +184,9 @@ test('a severity the list does not know is shown as information', () => {
   assert.deepEqual(findings.host.map((finding) => finding.severity), ['information', 'information', 'information']);
 });
 
-test('clear() still drops everything, the host\'s findings included', () => {
+test('clear() still drops everything, the host\'s findings included', async () => {
   const { findings } = fixture(stuck());
-  findings.analyse();
+  await findings.analyse();
   findings.setHostFindings([hostFinding()]);
 
   findings.clear();
@@ -200,9 +202,9 @@ function unreadable() {
   return [p, t, { ...arc('a', p, t), businessObject: { id: 'a', $type: 'ptn:Arc', inscription: '0' } }];
 }
 
-test('a net that could not be analysed has its reason dropped by an edit', () => {
+test('a net that could not be analysed has its reason dropped by an edit', async () => {
   const { findings, edit } = fixture(unreadable());
-  findings.analyse();
+  await findings.analyse();
   assert.match(findings.problem, /weight of arc a is 0/);
 
   edit();
@@ -211,22 +213,143 @@ test('a net that could not be analysed has its reason dropped by an edit', () =>
   assert.equal(findings.stale, true, 'an empty list after an edit must not read as a clean net');
 });
 
-test('the findings of the host are still there while the net cannot be analysed', () => {
+test('the findings of the host are still there while the net cannot be analysed', async () => {
   const { findings, last } = fixture(unreadable());
   findings.setHostFindings([hostFinding({ rule: 'PT07', element: 'a' })]);
 
-  findings.analyse();
+  await findings.analyse();
 
   assert.ok(findings.problem);
   assert.deepEqual(findings.all.map((finding) => finding.rule), ['PT07']);
   assert.equal(last().findings.length, 1, 'the panel is given them');
 });
 
-test('an import drops the reason a net could not be analysed as well', () => {
+test('an import drops the reason a net could not be analysed as well', async () => {
   const { findings, imported } = fixture(unreadable());
-  findings.analyse();
+  await findings.analyse();
 
   imported();
 
   assert.equal(findings.problem, null);
+});
+
+// ── while the search runs ───────────────────────────────────────────────────
+
+/** A search service that answers when the test says so. */
+function slowSearch() {
+  const calls = [];
+  return {
+    calls,
+    cancelled: [],
+    run(kind, net, limits) {
+      return new Promise((resolve) => calls.push({ kind, net, limits, resolve }));
+    },
+    cancel(kind) { this.cancelled.push(kind); },
+  };
+}
+
+test('an analysis that is running says so, and the answer replaces it', async () => {
+  const search = slowSearch();
+  const { findings, last } = fixture(stuck(), search);
+
+  const running = findings.analyse({ markings: 50 });
+  assert.equal(findings.busy, true);
+  assert.equal(last().busy, true);
+  assert.deepEqual(findings.progress, { markings: 0, edges: 0, limit: 50 });
+  assert.equal(search.calls.length, 1);
+  assert.equal(search.calls[0].kind, 'analyse');
+
+  // The core's answer, as a worker gives it.
+  const { runSearch } = await import('../search/run.js');
+  search.calls[0].resolve(runSearch('analyse', search.calls[0].net, { milliseconds: Infinity }));
+  const answer = await running;
+
+  assert.ok(answer.length > 0);
+  assert.equal(findings.busy, false);
+  assert.equal(last().busy, false);
+  assert.ok(findings.all.some((finding) => finding.rule === 'PT15'));
+});
+
+test('progress is passed on while it runs', async () => {
+  const search = slowSearch();
+  const { findings, eventBus, last } = fixture(stuck(), search);
+  findings.analyse({ markings: 100 });
+
+  eventBus.fire('search.progress', { kind: 'analyse', markings: 40, edges: 60 });
+  assert.deepEqual(last().progress, { markings: 40, edges: 60, limit: 100 });
+
+  // The progress of another kind of search is not ours.
+  eventBus.fire('search.progress', { kind: 'explore', markings: 7, edges: 7 });
+  assert.equal(last().progress.markings, 40);
+});
+
+test('stopping resolves to null, says the analysis was stopped and drops the answer when it comes', async () => {
+  const search = slowSearch();
+  const { findings, last } = fixture(stuck(), search);
+
+  const running = findings.analyse();
+  findings.cancel();
+
+  assert.equal(findings.busy, false);
+  assert.equal(findings.stopped, true);
+  assert.equal(last().stopped, true);
+  assert.deepEqual(search.cancelled, ['analyse']);
+
+  // A worker that answers anyway is not listened to.
+  search.calls[0].resolve({ findings: [{ rule: 'PT99', severity: 'error', message: 'late.' }], complete: true });
+  assert.equal(await running, null);
+  assert.deepEqual(findings.all, []);
+});
+
+test('an edit while it runs ends it, and the list says the net changed', async () => {
+  const search = slowSearch();
+  const { findings, edit, last } = fixture(stuck(), search);
+
+  const running = findings.analyse();
+  edit();
+
+  assert.equal(findings.busy, false);
+  assert.equal(findings.stale, true);
+  assert.equal(last().stale, true);
+  search.calls[0].resolve(null);
+  assert.equal(await running, null);
+  assert.deepEqual(findings.all, []);
+});
+
+test('a new analysis replaces the one that is running, and only its answer counts', async () => {
+  const search = slowSearch();
+  const { findings } = fixture(stuck(), search);
+
+  const first = findings.analyse();
+  const second = findings.analyse();
+  const { runSearch } = await import('../search/run.js');
+
+  search.calls[1].resolve(runSearch('analyse', search.calls[1].net, { milliseconds: Infinity }));
+  search.calls[0].resolve({ findings: [{ rule: 'PT99', severity: 'error', message: 'old.' }], complete: true });
+
+  assert.equal(await first, null);
+  assert.ok((await second).length > 0);
+  assert.ok(!findings.all.some((finding) => finding.rule === 'PT99'));
+});
+
+test('a net the core cannot read is answered at once, without a search', async () => {
+  const search = slowSearch();
+  const { findings } = fixture([place('p', 1), transition('t'), arc('a1', place('p', 1), place('q', 0))], search);
+  await findings.analyse();
+  assert.equal(search.calls.length, 0);
+  assert.ok(findings.problem);
+});
+
+test('the way into a deadlock and the run of an invariant come with the findings', async () => {
+  // Two end places, so that it is not a workflow net and its end is a deadlock.
+  const a = place('a', 1);
+  const go = transition('go');
+  const b = place('b');
+  const c = place('c');
+  const { findings } = fixture([a, go, b, c, arc('x1', a, go), arc('x2', go, b), arc('x3', go, c)]);
+  await findings.analyse();
+  const deadlock = findings.all.find((finding) => finding.rule === 'PT15');
+  assert.deepEqual(findings.wayTo(deadlock)?.transitions, ['go']);
+  assert.equal(findings.wayTo({ rule: 'PT13' }), null);
+  assert.equal(findings.runFor({ rule: 'PT13' }), null);
 });
