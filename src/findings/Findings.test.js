@@ -192,3 +192,41 @@ test('clear() still drops everything, the host\'s findings included', () => {
   assert.deepEqual(findings.all, []);
   assert.equal(findings.stale, false);
 });
+
+/** A net that cannot be analysed: an arc with the weight 0. */
+function unreadable() {
+  const p = place('p', 1);
+  const t = transition('t');
+  return [p, t, { ...arc('a', p, t), businessObject: { id: 'a', $type: 'ptn:Arc', inscription: '0' } }];
+}
+
+test('a net that could not be analysed has its reason dropped by an edit', () => {
+  const { findings, edit } = fixture(unreadable());
+  findings.analyse();
+  assert.match(findings.problem, /weight of arc a is 0/);
+
+  edit();
+
+  assert.equal(findings.problem, null, 'the reason described the net as it was');
+  assert.equal(findings.stale, true, 'an empty list after an edit must not read as a clean net');
+});
+
+test('the findings of the host are still there while the net cannot be analysed', () => {
+  const { findings, last } = fixture(unreadable());
+  findings.setHostFindings([hostFinding({ rule: 'PT07', element: 'a' })]);
+
+  findings.analyse();
+
+  assert.ok(findings.problem);
+  assert.deepEqual(findings.all.map((finding) => finding.rule), ['PT07']);
+  assert.equal(last().findings.length, 1, 'the panel is given them');
+});
+
+test('an import drops the reason a net could not be analysed as well', () => {
+  const { findings, imported } = fixture(unreadable());
+  findings.analyse();
+
+  imported();
+
+  assert.equal(findings.problem, null);
+});

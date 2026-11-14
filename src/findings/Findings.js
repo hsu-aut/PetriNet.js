@@ -38,10 +38,14 @@ export default class Findings {
     // findings stay where they are until the host sends new ones, because only
     // the host can say whether the edit cured them; the list is drawn again,
     // so that a finding about an element that is gone stops being a link.
+    //
+    // A net that could not be analysed is dropped the same way: the reason was
+    // about the net as it was, and a reader who has fixed it must not be told
+    // the old one.
     eventBus.on(['commandStack.changed', 'import.done'], () => {
-      if (!this._own.length && !this._fromHost.length) return;
+      if (!this._own.length && !this._fromHost.length && !this._problem) return;
 
-      if (this._own.length) {
+      if (this._own.length || this._problem) {
         this._dropOwn();
         this._stale = true;
       }

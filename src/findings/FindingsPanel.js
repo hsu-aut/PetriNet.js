@@ -151,14 +151,17 @@ export default class FindingsPanel {
     this._say(null);
     this._markButton();
 
+    // The host's findings are listed under the reason too: they are what a
+    // reader needs to fix the net, and the reason alone says only that it
+    // cannot be analysed.
     if (problem) {
       this._title.textContent = 'The net could not be read';
       this._list.appendChild(row({ severity: 'error', message: problem }));
-      return;
+    } else {
+      this._title.textContent = title(findings);
     }
 
-    this._title.textContent = title(findings);
-    if (findings.length === 0 && this._open) {
+    if (findings.length === 0 && this._open && !problem) {
       // "Nothing to report" would read as "the net is fine", which is not what
       // a dropped list means.
       this._list.appendChild(row({

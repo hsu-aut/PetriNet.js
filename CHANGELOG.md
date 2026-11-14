@@ -10,6 +10,9 @@ A change of behaviour in the findings list, hence a new minor version.
   host sends a list again, because only the host can say whether the edit cured
   them. The list says that what Analyse found was dropped, so a list that holds
   only the host's findings is not read as an analysis that found nothing more.
+- **The reason a net could not be analysed goes with an edit or an import,** as
+  the findings do, and the host's findings are listed under it. Before, the
+  reason stayed on screen after the net was fixed and hid the host's list.
 - **A finding about an element that is gone is no longer a link**, now that it
   can outlive the edit that deleted the element.
 - **The Analyse button carries the host's count** of errors and warnings while
