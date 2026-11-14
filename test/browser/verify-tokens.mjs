@@ -1,7 +1,7 @@
 /**
  * Tokens drawn as dots, in a real browser.
  *
- * The modeler writes a place's marking as a numeral. src/index.js draws up to
+ * The modeler writes a place's marking as a numeral. src/draw/CustomRenderer.js draws up to
  * five tokens as dots and leaves larger markings as a number. This checks the
  * drawing for several markings, that the marking itself is unchanged in the
  * model and in PNML, that a changed marking is drawn again, and that the SVG

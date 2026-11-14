@@ -2,7 +2,7 @@
 <!-- A net as another tool writes one: two nested pages, a reference place so
      that an arc can reach a node on the other page, tool-specific sections of
      a tool that is not this one, and no <dimension> anywhere. Used by
-     web/tools/verify-pages.mjs. -->
+     test/browser/verify-pages.mjs. -->
 <pnml xmlns="http://www.pnml.org/version-2009/grammar/pnml">
   <net id="plant" type="http://www.pnml.org/version-2009/grammar/ptnet">
     <name><text>Plant</text></name>

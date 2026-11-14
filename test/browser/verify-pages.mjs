@@ -7,8 +7,8 @@
  * another page are gone, and whatever that tool wrote in its own section is
  * gone with them. This checks that none of it is.
  *
- * The fixture is examples/foreign-pages.pnml. Its grammar is checked separately
- * by tools/validate-pnml.mjs, which needs Java; this check needs a browser.
+ * The fixture is test/fixtures/foreign-pages.pnml, a file written by hand to
+ * the PNML grammar; this check needs a browser, not a validator.
  */
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';

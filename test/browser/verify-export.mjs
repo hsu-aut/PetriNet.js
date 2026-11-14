@@ -74,7 +74,11 @@ const dot = await saved('.ptn-states-save-dot');
 const markings = await saved('.ptn-states-save-csv');
 const statesNote = await page.textContent('.ptn-states-note');
 
-// A host that saves the file itself gets it, and nothing is downloaded.
+// A host that saves the file itself gets it, and nothing is downloaded. The
+// listener is there before the call that could cause a download.
+let strayDownload = false;
+page.on('download', () => { strayDownload = true; });
+
 const host = await page.evaluate(() => {
   const modeler = window.ptn;
   const taken = [];
@@ -90,8 +94,6 @@ const host = await page.evaluate(() => {
   };
 });
 
-let strayDownload = false;
-page.on('download', () => { strayDownload = true; });
 await page.waitForTimeout(300);
 
 await browser.close();

@@ -120,6 +120,7 @@ const result = await page.evaluate(async () => {
 
   // While the net runs, tidying up is not offered and does nothing when asked.
   selection.select(null);
+  const beforeRun = spots(chain);
   simulation.start();
   const running = {
     tidyDisabled: disabled('tidy'),
@@ -145,6 +146,7 @@ const result = await page.evaluate(async () => {
     keySpread,
     keyRefused,
     running,
+    beforeRun,
     duringRun,
     pnmlBefore,
     pnmlAfter: await modeler.savePNML(),
@@ -194,9 +196,8 @@ check(/two shapes or more/.test(result.keyRefused.note), `the refused key said '
 check(result.running.tidyDisabled === true, 'tidying up is offered while the net runs');
 check(result.running.moved === 0 && result.running.aligned === 0,
   'something was moved while the net runs');
-check(JSON.stringify(result.duringRun) === JSON.stringify(result.tidied.spots)
-  || JSON.stringify(result.duringRun).length > 0,
-  'the shapes moved during the run');
+check(JSON.stringify(result.duringRun) === JSON.stringify(result.beforeRun),
+  `the shapes moved during the run: ${JSON.stringify(result.beforeRun)} became ${JSON.stringify(result.duringRun)}`);
 
 if (pageErrors.length) problems.push('page errors: ' + pageErrors.join('; '));
 
