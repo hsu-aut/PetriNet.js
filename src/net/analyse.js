@@ -210,7 +210,7 @@ function listed(ids, name, most = 5) {
  * a minute on a state space of twenty thousand, which in a browser is a frozen
  * page.
  */
-function notLive(net, result) {
+export function notLive(net, result) {
   const { of } = stronglyConnected(result);
 
   const leaves = new Set(of.values());
