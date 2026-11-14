@@ -22,7 +22,7 @@ export default class Findings {
     this._elementRegistry = elementRegistry;
     // The search runs in a worker where the modeler has one; without the service it
     // runs here, one answer at a time.
-    this._search = injector?.get('search', false) ?? null;
+    this._search = injector?.get('netSearch', false) ?? null;
     this._busy = false;
     this._stopped = false;
     this._run = 0;
@@ -69,7 +69,9 @@ export default class Findings {
     eventBus.on('search.progress', (event) => {
       if (!this._busy || event.kind !== 'analyse') return;
       this._progress = { markings: event.markings, edges: event.edges };
-      this._changed();
+      // Not `findings.changed`: the list has not changed, and a host's findings that arrive
+      // meanwhile must still be drawn.
+      this._eventBus.fire('findings.progress', { progress: this.progress });
     });
   }
 
@@ -167,8 +169,17 @@ export default class Findings {
       return [];
     }
 
-    // Stopped, or the net changed: what ended it has said so already.
-    if (run !== this._run || answer === null) return null;
+    // Stopped, or the net changed: what ended it has said so already. An answer of null that
+    // nothing here ended is a search that was ended from outside (`netSearch.cancel()`, say):
+    // the list must not go on saying it is working.
+    if (run !== this._run) return null;
+    if (answer === null) {
+      this._busy = false;
+      this._progress = null;
+      this._stopped = true;
+      this._changed();
+      return null;
+    }
 
     this._busy = false;
     this._net = net;
@@ -246,8 +257,9 @@ export default class Findings {
    * search recorded no way into it.
    */
   wayTo(finding) {
-    // The search worked it out where it still had the state space.
-    return Array.isArray(finding?.way) ? { transitions: finding.way } : null;
+    // The search worked it out where it still had the state space. Only for a finding that
+    // is in the list now: after an edit the way it names is about a net that is gone.
+    return Array.isArray(finding?.way) && this._own.includes(finding) ? { transitions: finding.way } : null;
   }
 
   /**
@@ -256,7 +268,7 @@ export default class Findings {
    * them is fireable.
    */
   runFor(finding) {
-    return Array.isArray(finding?.run) ? finding.run : null;
+    return Array.isArray(finding?.run) && this._own.includes(finding) ? finding.run : null;
   }
 
   /** Whether the element a finding is about is on the canvas. */

@@ -38,6 +38,7 @@ class FakeWorker {
     fakes.push(this);
     setTimeout(() => {
       if (this.terminated) return;
+      if (FakeWorker.mode === 'mute') return;
       if (FakeWorker.mode === 'fails') this.onerror?.({ message: 'blocked by policy', preventDefault() {} });
       else this.onmessage?.({ data: { type: 'ready' } });
     }, 0);
@@ -45,6 +46,7 @@ class FakeWorker {
 
   postMessage({ type, id, net: n, limits: l }) {
     if (FakeWorker.mode === 'silent') return;
+    if (FakeWorker.mode === 'unsendable') throw new DOMException('a function cannot be cloned', 'DataCloneError');
     setTimeout(() => {
       if (this.terminated) return;
       if (FakeWorker.mode === 'broken') {
@@ -233,4 +235,50 @@ test('workerSource.js is what the worker builds to now', async () => {
   const { readFile } = await import('node:fs/promises');
   const current = (await readFile(new URL('./workerSource.js', import.meta.url), 'utf8')).replace(/\r\n/g, '\n');
   assert.equal(current, await built(), 'run `npm run build:worker`');
+});
+
+test('a worker that never says it is ready is given up on, and the request is answered on the page', async (t) => {
+  withWorkers();
+  FakeWorker.mode = 'mute';
+  const warnings = [];
+  t.mock.method(console, 'warn', (message) => warnings.push(message));
+
+  const search = new Search(bus(), { readyTimeout: 20 });
+  const answer = await search.run('analyse', net, limits);
+  assert.deepEqual(answer, runSearch('analyse', net, limits));
+  assert.equal(search.mode, 'inline');
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /did not say it was ready/);
+});
+
+test('a request that cannot be sent is searched for on the page and does not hang', async () => {
+  withWorkers();
+  FakeWorker.mode = 'unsendable';
+  const search = new Search(bus(), undefined);
+  assert.ok(await search.run('analyse', net, limits));
+  assert.equal(search.busy(), false);
+});
+
+test('null and Infinity for a limit are different questions, and null means no limit', async () => {
+  const search = new Search(bus(), undefined);
+  const withNull = await search.run('analyse', net, { milliseconds: null });
+  assert.equal(withNull.complete, true, 'a time limit of null stopped the search at once');
+  const withInfinity = await search.run('analyse', net, { milliseconds: Infinity });
+  assert.deepEqual(withNull, withInfinity);
+});
+
+test('whoever waits for idle is not woken when one search replaces another', async () => {
+  withWorkers();
+  FakeWorker.mode = 'silent';
+  const search = new Search(bus(), undefined);
+  search.run('analyse', net, limits);
+  let woken = false;
+  search.idle().then(() => { woken = true; });
+  const second = search.run('analyse', net, { ...limits, markings: 7 });
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.equal(woken, false);
+  search.cancel();
+  await second;
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.equal(woken, true);
 });

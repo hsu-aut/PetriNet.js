@@ -1,6 +1,6 @@
 import Search from './Search.js';
 
 export default {
-  __init__: ['search'],
-  search: ['type', Search],
+  __init__: ['netSearch'],
+  netSearch: ['type', Search],
 };

@@ -96,9 +96,9 @@ an edit or an import ends the search and says that the net changed.
 The worker is started from a Blob, built into the package (`src/search/workerSource.js`,
 made by `npm run build:worker`), so a host needs no build step for it. A page whose
 policy forbids it (`worker-src` without `blob:`), a browser without workers, Node
-and a host that asks for it with `new PnModeler({ container, search: { worker: false } })`
+and a host that asks for it with `new PnModeler({ container, netSearch: { worker: false } })`
 get the same searches on the page, with the same limits, and a note on the console
-once. `modeler.get('search').mode` says which it is.
+once. `modeler.get('netSearch').mode` says which it is.
 
 **This changes the API.** The methods that search return promises:
 
@@ -108,7 +108,7 @@ await modeler.get('findingsPanel').analyse();            // opens the list at on
 const state = await modeler.get('reachabilityView').show();
 const said = await modeler.get('reachabilityView').ask('Idle = 1');
 modeler.get('findings').cancel();                        // Stop
-await modeler.get('search').idle();                      // nothing is running
+await modeler.get('netSearch').idle();                      // nothing is running
 ```
 
 `null` means the search ended without an answer: stopped, or the net changed meanwhile.

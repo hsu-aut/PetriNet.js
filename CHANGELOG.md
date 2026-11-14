@@ -7,7 +7,7 @@
 - **Analyse and the state space run in a Web Worker.** The canvas stays usable while
   they run. The list shows how far the search is and has a Stop button; an edit or an
   import ends it and the list says the net changed. Where no worker can be started (a
-  `worker-src` policy without `blob:`, Node, no worker support, or `search: { worker:
+  `worker-src` policy without `blob:`, Node, no worker support, or `netSearch: { worker:
   false }`) the searches run on the page as before, with the same limits, and the
   console says so once. The worker is built into the package as a string, so hosts
   need no build step.
@@ -16,7 +16,7 @@
   result at once must `await` them. They resolve to `null` where the search was
   stopped or the net changed. New: `findings.cancel()`, `findings.busy`,
   `findings.progress`, `reachabilityView.cancel()`, `reachabilityView.busy`, the
-  service `search` (`run`, `cancel`, `idle`, `mode`, `busy`) and the event
+  service `netSearch` (`run`, `cancel`, `idle`, `mode`, `busy`) and the event
   `search.progress`. The event `findings.changed` carries `busy`, `stopped` and
   `progress`.
 - `Findings.wayTo(finding)` and `runFor(finding)` read what the search worked out
@@ -24,6 +24,12 @@
 - **All shortest ways come from one walk over the edges** instead of one walk per
   marking, which made the query line and "Way there" slow on large state spaces.
   The answers are the same.
+- **The service is called `netSearch`**, and the option too, because diagram-js has a
+  service `search` of its own that the search of elements (Ctrl+F) depends on.
+- `null` for a limit means none, as in `analyseData`. A worker that does not say it is
+  ready within ten seconds (`netSearch: { readyTimeout }`) is given up on, and the page
+  searches. `Findings.wayTo` and `runFor` answer only for a finding that is in the list
+  now, and `wayTo` gives `{ transitions }` without the list of markings.
 - The panel for the findings says "Analysing" while it works, and the Analyse button
   is disabled meanwhile.
 

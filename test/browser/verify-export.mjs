@@ -57,7 +57,7 @@ const empty = await page.evaluate(async () => {
 
 /** Waits until the searches have answered, and one tick more for what the page does with it. */
 const settled = async () => {
-  await page.evaluate(() => window.ptn.get('search').idle());
+  await page.evaluate(() => window.ptn.get('netSearch').idle());
   await page.waitForTimeout(50);
 };
 

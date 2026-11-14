@@ -49,10 +49,10 @@ const build = (page, count) => page.evaluate((n) => {
 const worker = await open();
 const workers = [];
 worker.page.on('worker', (w) => workers.push(w));
-await build(worker.page, 16);
+await build(worker.page, 15);
 
 const live = await worker.page.evaluate(async (limits) => {
-  const search = window.ptn.get('search');
+  const search = window.ptn.get('netSearch');
   const gaps = [];
   let last = performance.now();
   const timer = setInterval(() => { const now = performance.now(); gaps.push(now - last); last = now; }, 20);
@@ -91,7 +91,7 @@ check(live.markings > 0, 'the analysis gave no findings');
 
 // ── the same net on the page freezes it, so the check above measures something ─
 const inline = await open('?worker=off');
-await build(inline.page, 16);
+await build(inline.page, 15);
 const frozen = await inline.page.evaluate(async (limits) => {
   const gaps = [];
   let last = performance.now();
@@ -102,7 +102,7 @@ const frozen = await inline.page.evaluate(async (limits) => {
   clearInterval(timer);
   // A page that is blocked does not tick at all, so the time it took is the time it was blocked.
   return {
-    mode: window.ptn.get('search').mode,
+    mode: window.ptn.get('netSearch').mode,
     longest: Math.max(performance.now() - started - 50, gaps.length ? Math.max(...gaps) : 0),
     count: window.ptn.get('findings').all.length,
   };
@@ -131,7 +131,7 @@ await fromPage.page.close();
 
 // ── stopping, and an edit during the search ────────────────────────────────
 const stop = await open();
-await build(stop.page, 16);
+await build(stop.page, 15);
 const stopped = await stop.page.evaluate(async (limits) => {
   window.ptn.get('findingsPanel').open();
   const running = window.ptn.get('findings').analyse(limits);
@@ -141,7 +141,7 @@ const stopped = await stop.page.evaluate(async (limits) => {
   return {
     answer,
     busy: window.ptn.get('findings').busy,
-    stopped: window.ptn.get('search').busy(),
+    stopped: window.ptn.get('netSearch').busy(),
     rows: [...document.querySelectorAll('.ptn-finding')].map((row) => row.textContent),
     button: document.querySelector('.ptn-findings-button').textContent,
   };
@@ -160,7 +160,7 @@ const edited = await stop.page.evaluate(async (limits) => {
   const answer = await running;
   return {
     answer,
-    busy: window.ptn.get('search').busy(),
+    busy: window.ptn.get('netSearch').busy(),
     stale: window.ptn.get('findings').stale,
     rows: [...document.querySelectorAll('.ptn-finding')].map((row) => row.textContent),
   };
@@ -173,6 +173,50 @@ const again = await stop.page.evaluate(async () => (await window.ptn.get('findin
 check(again > 0, 'the analysis does not work after a stop and an edit');
 await stop.page.close();
 
+// ── the state space: busy, Stop, and a question asked while it searches ───
+const view = await open();
+await build(view.page, 15);
+const stateSearch = await view.page.evaluate(async (limits) => {
+  const v = window.ptn.get('reachabilityView');
+  const running = v.show(limits);
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  const during = {
+    busy: v.busy,
+    title: document.querySelector('.ptn-states-title').textContent,
+    stopShown: !document.querySelector('.ptn-states-stop').hidden,
+  };
+  // A question asked now is answered when the search has finished, not before.
+  const asked = v.ask('p0 = 1');
+  document.querySelector('.ptn-states-stop').click();
+  const answer = await running;
+  return {
+    during,
+    answer,
+    busy: v.busy,
+    title: document.querySelector('.ptn-states-title').textContent,
+    stopShown: !document.querySelector('.ptn-states-stop').hidden,
+    asked: await asked,
+    searching: window.ptn.get('netSearch').busy(),
+  };
+}, BIG);
+check(stateSearch.during.busy === true && /^Searching/.test(stateSearch.during.title) && stateSearch.during.stopShown, `the state space did not say it searched: ${JSON.stringify(stateSearch.during)}`);
+check(stateSearch.answer === null && stateSearch.busy === false && stateSearch.stopShown === false && /stopped/.test(stateSearch.title), `Stop on the state space left ${JSON.stringify(stateSearch)}`);
+check(typeof stateSearch.asked === 'string' && stateSearch.asked.length > 0, 'a question asked during the search was not answered');
+check(stateSearch.searching === false, 'the state space search was still running after Stop');
+await view.page.close();
+
+// ── the element search of diagram-js still works: the service of the worker has its own name ──
+const finder = await open();
+await build(finder.page, 3);
+await finder.page.evaluate(() => window.ptn.get('canvas').focus());
+await finder.page.keyboard.press('Control+f');
+await finder.page.waitForTimeout(150);
+await finder.page.keyboard.type('p');
+await finder.page.waitForTimeout(150);
+check(await finder.page.evaluate(() => window.ptn.get('searchPad').isOpen()), 'Ctrl+F does not open the search of elements');
+await finder.page.keyboard.press('Escape');
+await finder.page.close();
+
 // ── a policy that forbids workers: the same answers from the page ──────────
 const policy = await open('', async (page) => {
   await page.route('**/index.html', async (route) => {
@@ -183,7 +227,7 @@ const policy = await open('', async (page) => {
 await build(policy.page, 6);
 const governed = await policy.page.evaluate(async () => {
   const answer = await window.ptn.get('findingsPanel').analyse();
-  return { count: answer?.length, mode: window.ptn.get('search').mode };
+  return { count: answer?.length, mode: window.ptn.get('netSearch').mode };
 });
 check(governed.mode === 'inline', `with worker-src 'none' the search ran in mode '${governed.mode}'`);
 check(governed.count > 0, 'with worker-src \'none\' the analysis gave nothing');

@@ -21,7 +21,19 @@ export function plainLimits(limits = {}) {
   return plain;
 }
 
-export function runSearch(kind, net, limits = {}) {
+/**
+ * `null` for a limit means none, as in analyseData: no time limit, and for the
+ * markings the default. Without this a null reached the core as a limit of zero.
+ */
+function normalised(limits) {
+  const used = { ...limits };
+  if (used.milliseconds === null) used.milliseconds = Infinity;
+  if (used.markings === null) delete used.markings;
+  return used;
+}
+
+export function runSearch(kind, net, rawLimits = {}) {
+  const limits = normalised(rawLimits);
   if (kind === 'explore') return toWire(explore(net, limits), net);
   if (kind !== 'analyse') throw new Error(`unknown search '${kind}'`);
 

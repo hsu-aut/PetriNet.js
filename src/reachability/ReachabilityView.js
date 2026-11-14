@@ -47,8 +47,9 @@ export default class ReachabilityView {
     this._canvas = canvas;
     this._elementRegistry = elementRegistry;
     this._simulation = simulation;
-    this._search = injector.get('search', false);
+    this._search = injector.get('netSearch', false);
     this._pending = null;
+    this._pendingKey = null;
     this._runId = 0;
     this._result = null;
     this._net = null;
@@ -161,8 +162,11 @@ export default class ReachabilityView {
    *   where the search was stopped or the net changed while it ran.
    */
   show(limits = {}) {
-    // A search that is already running for the same net is the answer.
-    if (this._pending) return this._pending;
+    // A search that is already running with these limits is the answer. With others it is
+    // not: it is stopped and the question is asked again.
+    const limitsKey = JSON.stringify(limits, (name, value) => (value === Infinity ? 'Infinity' : value));
+    if (this._pending && this._pendingKey === limitsKey) return this._pending;
+    if (this._pending) this.cancel();
 
     let net;
     try {
@@ -178,6 +182,7 @@ export default class ReachabilityView {
 
     this._runId += 1;
     const run = this._runId;
+    this._pendingKey = limitsKey;
     this._result = null;
     this._net = null;
     this._title.textContent = 'Searching\u2026';
@@ -201,12 +206,23 @@ export default class ReachabilityView {
         }
       }
 
-      if (run !== this._runId || answer === null) return null;
+      if (run !== this._runId) return null;
+      if (answer === null) {
+        // Ended from outside (`netSearch.cancel()`): the view must not go on saying it searches.
+        this._title.textContent = 'The search was stopped';
+        this._picture.replaceChildren(text('The search was stopped. Press State space to search again.', 'ptn-states-note'));
+        return null;
+      }
 
-      this._result = fromWire(answer);
-      this._net = net;
-      if (this._result.markings.length > MOST_NODES) this._tooBig();
-      else this._draw();
+      try {
+        this._result = fromWire(answer);
+        this._net = net;
+        if (this._result.markings.length > MOST_NODES) this._tooBig();
+        else this._draw();
+      } catch (error) {
+        this._failed(error);
+        return null;
+      }
       return this.state;
     })();
 
@@ -214,11 +230,17 @@ export default class ReachabilityView {
     return pending;
   }
 
+  /** Whether a search for the state space is running. */
+  get busy() {
+    return this._pending !== null;
+  }
+
   /** Stops a search that is running. */
   cancel() {
     if (!this._pending) return;
     this._runId += 1;
     this._pending = null;
+    this._pendingKey = null;
     this._stop.hidden = true;
     this._search?.cancel('explore');
     this._title.textContent = 'The search was stopped';

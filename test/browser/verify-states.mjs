@@ -22,7 +22,7 @@ const result = await page.evaluate(async () => {
   // The searches run in a worker now: wait until they have answered, and one tick more for what
   // the page does with the answer.
   const settle = async () => {
-    await modeler.get('search').idle();
+    await modeler.get('netSearch').idle();
     await new Promise((resolve) => setTimeout(resolve, 30));
   };
   const factory = modeler.get('elementFactory');

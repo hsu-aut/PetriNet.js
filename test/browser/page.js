@@ -8,7 +8,7 @@ import { PnModeler } from '../../index.js';
 const options = { container: document.getElementById('canvas') };
 if (new URLSearchParams(location.search).get('properties') === 'off') options.propertiesPanel = false;
 // ?worker=off keeps the searches on the page, as a host that cannot start workers would.
-if (new URLSearchParams(location.search).get('worker') === 'off') options.search = { worker: false };
+if (new URLSearchParams(location.search).get('worker') === 'off') options.netSearch = { worker: false };
 
 const modeler = new PnModeler(options);
 await modeler.createNew();

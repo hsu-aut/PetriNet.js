@@ -22,7 +22,7 @@ import { plainLimits, runSearch } from './run.js';
 import workerSource from './workerSource.js';
 
 export default class Search {
-  static $inject = ['eventBus', 'config.search'];
+  static $inject = ['eventBus', 'config.netSearch'];
 
   constructor(eventBus, config) {
     this._eventBus = eventBus;
@@ -34,6 +34,11 @@ export default class Search {
     this._next = 1;
     this._url = null;
     this._idle = [];
+    this._replacing = false;
+    // A worker that neither answers nor fails, which a host could cause with a policy
+    // of its own, would leave every analysis waiting for ever. The fall back has the page
+    // do it instead.
+    this._readyAfter = config?.readyTimeout ?? 10000;
 
     // Anything that changes the net makes an answer about it wrong.
     eventBus.on(['commandStack.changed', 'import.done', 'diagram.clear'], () => this.cancel());
@@ -71,12 +76,19 @@ export default class Search {
    */
   run(kind, net, limits = {}) {
     const plain = plainLimits(limits);
-    const key = `${kind}\u0000${JSON.stringify([net, plain, Object.keys(limits).some((name) => name === 'now')])}`;
+    // Infinity and null are different limits and must not look alike: JSON writes both as null.
+    const key = `${kind}\u0000${JSON.stringify([net, plain, Object.keys(limits).some((name) => name === 'now')],
+      (name, value) => (value === Infinity ? 'Infinity' : value))}`;
 
     // The same question asked again while it is being answered is the same answer.
     const running = this._byKind.get(kind);
     if (running && running.key === key && !running.cancelled) return running.promise;
-    if (running) this.cancel(kind);
+    if (running) {
+      // The one that replaces it starts at once; whoever waits for idle must not be woken in between.
+      this._replacing = true;
+      this.cancel(kind);
+      this._replacing = false;
+    }
 
     const job = { id: this._next, kind, key, cancelled: false, net, limits: plain, clock: limits.now ?? null };
     this._next += 1;
@@ -131,7 +143,15 @@ export default class Search {
     }
 
     entry.pending.add(job.id);
-    const send = () => entry.worker.postMessage({ type: job.kind, id: job.id, net: job.net, limits: job.limits });
+    const send = () => {
+      try {
+        entry.worker.postMessage({ type: job.kind, id: job.id, net: job.net, limits: job.limits });
+      } catch (error) {
+        // What cannot be sent (a limit that is a function, say) is searched for here instead.
+        entry.pending.delete(job.id);
+        this._runHere(job, job.limits);
+      }
+    };
     if (entry.ready) send();
     else entry.queue.push(send);
   }
@@ -142,12 +162,24 @@ export default class Search {
 
     if (!this._url) this._url = URL.createObjectURL(new Blob([workerSource], { type: 'text/javascript' }));
     const worker = new Worker(this._url);
-    const entry = { worker, ready: false, queue: [], pending: new Set() };
+    const entry = { worker, ready: false, queue: [], pending: new Set(), timer: null };
     this._workers.set(kind, entry);
+
+    const giveUp = (reason) => {
+      if (entry.ready) return;
+      this._fallBack(reason);
+      this._endWorker(kind);
+      for (const id of entry.pending) {
+        const job = this._jobs.get(id);
+        if (job && !job.cancelled) this._runHere(job, job.limits);
+      }
+    };
+    entry.timer = setTimeout(() => giveUp(new Error('the worker did not say it was ready')), this._readyAfter);
 
     worker.onmessage = (event) => {
       const message = event.data;
       if (message.type === 'ready') {
+        clearTimeout(entry.timer);
         entry.ready = true;
         for (const send of entry.queue.splice(0)) send();
         return;
@@ -176,12 +208,7 @@ export default class Search {
       }
 
       event.preventDefault?.();
-      this._fallBack(new Error(event.message || 'the worker did not start'));
-      this._endWorker(kind);
-      for (const id of entry.pending) {
-        const job = this._jobs.get(id);
-        if (job && !job.cancelled) this._runHere(job, job.limits);
-      }
+      giveUp(new Error(event.message || 'the worker did not start'));
     };
 
     return entry;
@@ -190,6 +217,7 @@ export default class Search {
   _endWorker(kind) {
     const entry = this._workers.get(kind);
     if (!entry) return;
+    clearTimeout(entry.timer);
     entry.worker.terminate();
     this._workers.delete(kind);
   }
@@ -220,7 +248,7 @@ export default class Search {
   }
 
   _wake() {
-    if (this.busy()) return;
+    if (this._replacing || this.busy()) return;
     for (const resolve of this._idle.splice(0)) resolve();
   }
 

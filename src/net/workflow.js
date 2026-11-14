@@ -59,13 +59,16 @@ const hasOmega = (key) => readKey(key).some(([, held]) => held === Infinity);
  * }}
  */
 export function soundness(net, shape, limits = {}, drawn = null) {
+  // The search of the net started at [i] is a second one, and its count would run backwards
+  // against the first. Only the first reports progress.
+  const { progress, ...quiet } = limits;
   const start = keyOf(shape.start);
   const end = keyOf(shape.end);
   const fromDrawn = drawn !== null && drawnAtStart(net, shape);
 
   const searched = fromDrawn
     ? drawn
-    : explore({ ...net, places: net.places.map((place) => ({ ...place, marking: place.id === shape.start ? 1 : 0 })) }, limits);
+    : explore({ ...net, places: net.places.map((place) => ({ ...place, marking: place.id === shape.start ? 1 : 0 })) }, quiet);
 
   const reasons = [];
 

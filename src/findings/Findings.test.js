@@ -26,7 +26,7 @@ function fixture(elements = [], search = null) {
     get: (id) => registry.get(id),
   };
 
-  const injector = { get: (name) => (name === 'search' ? search ?? undefined : undefined) };
+  const injector = { get: (name) => (name === 'netSearch' ? search ?? undefined : undefined) };
   const findings = new Findings(eventBus, elementRegistry, injector);
   return {
     findings,
@@ -272,15 +272,16 @@ test('an analysis that is running says so, and the answer replaces it', async ()
 
 test('progress is passed on while it runs', async () => {
   const search = slowSearch();
-  const { findings, eventBus, last } = fixture(stuck(), search);
+  const { findings, eventBus, fired } = fixture(stuck(), search);
   findings.analyse({ markings: 100 });
 
+  const progress = () => fired.filter(([name]) => name === 'findings.progress').map(([, event]) => event.progress);
   eventBus.fire('search.progress', { kind: 'analyse', markings: 40, edges: 60 });
-  assert.deepEqual(last().progress, { markings: 40, edges: 60, limit: 100 });
+  assert.deepEqual(progress(), [{ markings: 40, edges: 60, limit: 100 }]);
 
   // The progress of another kind of search is not ours.
   eventBus.fire('search.progress', { kind: 'explore', markings: 7, edges: 7 });
-  assert.equal(last().progress.markings, 40);
+  assert.equal(progress().length, 1);
 });
 
 test('stopping resolves to null, says the analysis was stopped and drops the answer when it comes', async () => {
@@ -352,4 +353,37 @@ test('the way into a deadlock and the run of an invariant come with the findings
   assert.deepEqual(findings.wayTo(deadlock)?.transitions, ['go']);
   assert.equal(findings.wayTo({ rule: 'PT13' }), null);
   assert.equal(findings.runFor({ rule: 'PT13' }), null);
+});
+
+test('the findings of a host that arrive while the search runs are listed at once, not at the end', async () => {
+  const search = slowSearch();
+  const { findings, last } = fixture(stuck(), search);
+  findings.analyse();
+  findings.setHostFindings([hostFinding({ message: 'Arrived meanwhile.' })]);
+  assert.equal(last().busy, true);
+  assert.deepEqual(last().findings.map((finding) => finding.message), ['Arrived meanwhile.']);
+});
+
+test('a search that is ended from outside does not leave the list saying it is working', async () => {
+  const search = slowSearch();
+  const { findings, last } = fixture(stuck(), search);
+  const running = findings.analyse();
+  search.calls[0].resolve(null); // netSearch.cancel(), say
+  assert.equal(await running, null);
+  assert.equal(findings.busy, false);
+  assert.equal(last().busy, false);
+  assert.equal(last().stopped, true);
+});
+
+test('the way into a marking is only offered for a finding that is in the list now', async () => {
+  const a = place('a', 1);
+  const go = transition('go');
+  const b = place('b');
+  const c = place('c');
+  const { findings, edit } = fixture([a, go, b, c, arc('x1', a, go), arc('x2', go, b), arc('x3', go, c)]);
+  await findings.analyse();
+  const deadlock = findings.all.find((finding) => finding.rule === 'PT15');
+  assert.ok(findings.wayTo(deadlock));
+  edit();
+  assert.equal(findings.wayTo(deadlock), null, 'a way into a marking of a net that has changed');
 });

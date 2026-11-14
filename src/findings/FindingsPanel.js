@@ -83,6 +83,9 @@ export default class FindingsPanel {
     });
 
     eventBus.on('findings.changed', (event) => this._update(event));
+    eventBus.on('findings.progress', ({ progress }) => {
+      if (this._busyText && progress) this._busyText.textContent = busyText(progress);
+    });
 
     eventBus.on('findings.show', (event) => {
       this._selection.select(event.element);
@@ -162,13 +165,6 @@ export default class FindingsPanel {
     this._button.disabled = this._busyNow;
     if (this._busyNow) this._button.textContent = 'Analysing\u2026';
 
-    // The row that says it is working is redrawn on every report of progress; the
-    // list under it is not.
-    if (this._busyNow && this._list.querySelector('.ptn-findings-busy') && progress) {
-      this._busyText.textContent = busyText(progress);
-      return;
-    }
-
     this._list.replaceChildren();
     this._say(null);
     if (!this._busyNow) this._markButton();
@@ -216,6 +212,15 @@ export default class FindingsPanel {
     // The host's findings outlive an edit and the computed ones do not. A list
     // that holds only the first would read as an analysis that found nothing
     // more, so it says what is missing.
+    // The analysis was stopped while the host's findings are on the screen: say so, or the
+    // list reads as an analysis that found nothing more.
+    if (stopped && findings.length > 0 && !this._busyNow) {
+      this._list.appendChild(row({
+        severity: 'information',
+        message: 'The analysis was stopped, so only what the host found is listed. Analyse again.',
+      }));
+    }
+
     if (stale && findings.length > 0 && !this._busyNow) {
       this._list.appendChild(row({
         severity: 'information',
