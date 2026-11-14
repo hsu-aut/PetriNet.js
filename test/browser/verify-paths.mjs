@@ -134,7 +134,9 @@ const problems = [];
 const check = (condition, message) => { if (!condition) problems.push(message); };
 
 check(result.offered === '▶ Way there', `the deadlock finding offers '${result.offered}'`);
-check(result.waysOffered === 1, `${result.waysOffered} findings offer a way there; only the deadlock should`);
+// The deadlock, and the verdict that the workflow net is not sound: both are about the marking it
+// gets stuck in, so both can show the way into it. Nothing else has a marking to go to.
+check(result.waysOffered === 2, `${result.waysOffered} findings offer a way there; only the deadlock and the verdict should`);
 
 check(/One firing leads there/.test(result.loaded.note ?? ''), `loading the way said '${result.loaded.note}'`);
 check(result.loaded.running === true, 'loading the way did not start the run');

@@ -236,6 +236,16 @@
   background: #eef1f6;
 }
 
+.ptn-finding-proof {
+  margin-left: 6px;
+  padding: 0 4px;
+  border: 1px solid #5f6368;
+  border-radius: 3px;
+  color: #3c4043;
+  font-size: 11px;
+  white-space: nowrap;
+  cursor: help;
+}
 .ptn-finding-error .ptn-finding-mark { color: #d93025; }
 .ptn-finding-warning .ptn-finding-mark { color: #e8a33d; }
 .ptn-finding-information .ptn-finding-mark { color: #5f6368; }

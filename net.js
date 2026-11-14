@@ -12,3 +12,5 @@ export { analyse, RULES } from './src/net/analyse.js';
 export { readNet } from './src/net/model.js';
 export { OMEGA } from './src/net/explore.js';
 export { findingsToCsv } from './src/net/report.js';
+export { classNames, netClasses, workflowShape } from './src/net/classes.js';
+export { soundness } from './src/net/workflow.js';

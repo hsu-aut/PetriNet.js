@@ -21,6 +21,8 @@ import { readNet } from './model.js';
  *   stopped: 'markings' | 'time' | null,
  *   markings: number,         how many markings were found
  *   unbounded: string[],      ids of places that grow without bound
+ *   classes: string[],        the classes of the net, most specific first (see classes.js)
+ *   workflow: { start, end, sound } | null,   sound is true, false or null (not decided)
  *   findings: { rule, severity, element, message, marking?, cover?, firings? }[],
  * }}
  */
@@ -33,10 +35,10 @@ export function analyseData(data, limits = {}) {
   try {
     net = readNet(data);
   } catch (error) {
-    return { problem: error.message, complete: false, stopped: null, markings: 0, unbounded: [], findings: [] };
+    return { problem: error.message, complete: false, stopped: null, markings: 0, unbounded: [], classes: [], workflow: null, findings: [] };
   }
 
-  const { findings, complete, result } = analyse(net, used);
+  const { findings, complete, result, classes, workflow } = analyse(net, used);
   return {
     problem: null,
     // Whether the answer is the whole truth: the search finished and no place
@@ -45,6 +47,8 @@ export function analyseData(data, limits = {}) {
     stopped: result.stopped,
     markings: result.markings.length,
     unbounded: [...result.unbounded],
+    classes,
+    workflow,
     findings,
   };
 }

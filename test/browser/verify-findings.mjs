@@ -133,7 +133,9 @@ check(result.before.rows === 0, 'the panel holds findings before anything was an
 
 check(result.analysed.hidden === false, 'the panel stayed closed after Analyse');
 check(result.analysed.rows.length > 0, 'the analysis reported nothing at all');
-check(/Findings \(0 error\(s\), 2 warning\(s\)/.test(result.analysed.title),
+// Two warnings from the search (the dead transition and the deadlock) and one from the structure:
+// this net runs from In to Out, so it is a workflow net, and an unsound one (PT25).
+check(/Findings \(0 error\(s\), 3 warning\(s\)/.test(result.analysed.title),
   `the title says '${result.analysed.title}'`);
 
 const dead = ruleOf(result.analysed.rows, 'PT14');

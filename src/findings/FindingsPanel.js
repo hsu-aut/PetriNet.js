@@ -7,6 +7,7 @@
  * way by hand. The buttons sit at the end of the row and say what they do; the
  * row itself keeps selecting the element it is about.
  */
+import { RULES } from '../net/analyse.js';
 import { findingsToCsv } from '../net/report.js';
 import { nameFor, offerFile } from '../ui/download.js';
 
@@ -302,11 +303,23 @@ function row(finding) {
   const rule = document.createElement('span');
   rule.className = 'ptn-finding-rule';
   rule.textContent = finding.rule ?? '';
+  if (RULES[finding.rule]) rule.title = RULES[finding.rule];
 
   const message = document.createElement('span');
   message.className = 'ptn-finding-message';
   message.textContent = finding.message;
 
   item.append(mark, rule, message);
+
+  // A statement that was proven from the structure is told apart from one the
+  // search found: it holds whatever the size of the state space.
+  if (finding.proof) {
+    const proof = document.createElement('span');
+    proof.className = 'ptn-finding-proof';
+    proof.textContent = '∎ proof';
+    proof.title = 'Proven from the structure of the net, not found by the search. It holds however large the state space is.';
+    item.append(proof);
+  }
+
   return item;
 }

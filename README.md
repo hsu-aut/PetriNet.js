@@ -68,7 +68,7 @@ it work is theirs; the changes below are this fork's.
 ## Install
 
 ```bash
-npm install github:hsu-aut/PetriNet.js#v0.2.0
+npm install github:hsu-aut/PetriNet.js#v0.4.0
 ```
 
 The package is called `petrinetjs`. It is not on npm yet, so it is installed
@@ -85,6 +85,30 @@ const modeler = new PnModeler({ container: document.querySelector('#canvas') });
 await modeler.createNew();              // or: await modeler.importPNML(xml)
 const pnml = await modeler.savePNML();
 ```
+
+## Net classes and workflow nets
+
+Analyse names the class a net belongs to (state machine, marked graph,
+free-choice, extended free-choice, asymmetric choice) in a finding of its own,
+PT22. Where a theorem covers the class it proves liveness (PT23) or boundedness
+(PT24) from the structure, whatever the size of the state space. For a workflow
+net, one with a single start place and a single end place, PT25 says whether it
+is sound (van der Aalst 1997).
+
+A statement that rests on a theorem starts with "Proven from the structure", carries
+`proof` in the finding and shows a tag in the list. Nothing else does. A proof
+never contradicts a complete search; the tests compare the two on thousands of
+generated nets.
+
+The classes are defined for nets in which every arc carries one token. A net with
+a heavier arc is "not determined": the theorems say nothing about it and the
+search answers. The structural statements about liveness need all minimal
+siphons and are not attempted above 40 places.
+
+A workflow net is checked from one token in its start place, whatever it is drawn
+with. Drawn with that token, the end place is the proper end of the process and
+not a deadlock, and the net is not asked to be live. Together with PT25 this
+changes what Analyse says about such nets.
 
 ## The analysis without a canvas
 

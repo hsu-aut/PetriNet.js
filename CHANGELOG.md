@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.4.0
+
+New findings and a change of what Analyse says about workflow nets, hence a new minor
+version.
+
+- **PT22, the class of a net.** State machine, marked graph, free-choice, extended
+  free-choice or asymmetric choice, in a finding of its own with a sentence for
+  people who do not know the theory. A net with an arc that carries more than one
+  token is "not determined", and the arc is named.
+- **PT23, liveness from the structure.** Proven for state machines, marked graphs
+  and extended free-choice nets (Commoner's theorem), whatever the size of the state
+  space. Not applied where a transition has no input or output place, and not
+  attempted above 40 places.
+- **PT24, boundedness from the structure.** Proven where every place lies in a place
+  invariant, and, for a live extended free-choice net, from the S-components (Hack's
+  theorem), which can also prove a net is not bounded.
+- **PT25, soundness of workflow nets.** From the search where it is whole, from a
+  counter-example where it is cut off, and from the structure where the closed net
+  is live and bounded. Checked from one token in the start place however the net is
+  drawn, and the message says so.
+- **A statement that was proven carries `proof`**, starts with "Proven from the
+  structure" and shows a tag in the list. The tests compare every proof with a
+  complete search on generated nets and fail on a contradiction.
+- **Changed:** a workflow net drawn at its start no longer gets a deadlock warning
+  at its end place (information, "the process ends here") and no liveness finding.
+  A workflow net that is not sound is a warning. `analyse()` and `analyseData`
+  also return `classes` and `workflow`. `net.js` exports `netClasses`,
+  `classNames`, `workflowShape` and `soundness`.
+
 ## 0.3.0
 
 - **The analysis core is a public entry of its own, `petrinetjs/net.js`.** It

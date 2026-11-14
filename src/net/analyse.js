@@ -12,10 +12,14 @@
  * findings say which of the two they are, and PT17 states it once more in the
  * list, because a reader takes "no deadlock" for a proof otherwise.
  */
-import { initialMarking, readKey } from './model.js';
+import { initialMarking, markingKey, readKey } from './model.js';
 import { bounds, explore, OMEGA } from './explore.js';
 import { placeInvariants, transitionInvariants } from './invariants.js';
 import { holdsToken, maximalTrap, siphons, traps } from './structure.js';
+import { classNames, netClasses, workflowShape } from './classes.js';
+import { boundednessFromStructure, livenessFromStructure } from './theorems.js';
+import { drawnAtStart, soundness } from './workflow.js';
+import { boundednessSentence, classSentence, livenessSentence, soundnessSentence } from './explain.js';
 
 export const RULES = {
   PT12: 'Unbounded place',
@@ -28,6 +32,10 @@ export const RULES = {
   PT19: 'Transition invariant',
   PT20: 'Siphon',
   PT21: 'Trap',
+  PT22: 'Net class',
+  PT23: 'Liveness from the structure',
+  PT24: 'Boundedness from the structure',
+  PT25: 'Workflow net soundness',
 };
 
 /**
@@ -53,6 +61,54 @@ export function analyse(net, limits = {}) {
   const searched = result.complete
     ? 'in the markings the search covered'
     : 'in the markings the search reached before it stopped';
+
+  // What the structure says: the class of the net, what its theorems prove, and
+  // for a workflow net whether it is sound. These come first so that the class
+  // heads the information block. A finding that rests on a theorem carries
+  // `proof`, and its sentence says so.
+  const ctx = { name, listed, describe };
+  const classes = netClasses(net);
+  const shape = workflowShape(net);
+  const workflow = shape && shape.offPath === null ? shape : null;
+  const atStart = workflow !== null && drawnAtStart(net, workflow);
+  const classList = classNames(classes);
+  let verdict = null;
+
+  if (net.places.length > 0 && net.transitions.length > 0) {
+    const heavy = net.arcs.find((arc) => arc.id === classes.witness);
+    classes.witnessText = heavy
+      ? `from ${name.get(heavy.source) ?? heavy.source} to ${name.get(heavy.target) ?? heavy.target}`
+      : '';
+    add('PT22', 'information', heavy ? heavy.id : (shape?.offPath ?? null),
+      classSentence(classes, classList, ctx, workflow ? null : shape),
+      { classes: classList });
+
+    // A workflow net drawn at its start ends, so it is not live and should not be
+    // told so; what is asked of it is soundness, below.
+    const liveness = livenessFromStructure(net, classes, limits.structure ?? {});
+    if (liveness && !atStart) {
+      add('PT23', 'information', null, livenessSentence(liveness, ctx),
+        liveness.live === null ? {} : { proof: liveness.proof, cover: liveness.cover.map((id) => [id, 1]) });
+    }
+
+    const boundedness = boundednessFromStructure(net, classes, liveness);
+    if (boundedness) {
+      add('PT24', boundedness.bounded ? 'information' : 'warning', null, boundednessSentence(boundedness, ctx),
+        { proof: boundedness.proof, cover: boundedness.cover.map((id) => [id, 1]) });
+    }
+
+    if (workflow) {
+      verdict = soundness(net, workflow, limits, result);
+      const extras = {};
+      if (verdict.proof) extras.proof = verdict.proof;
+      const stray = verdict.reasons.find((reason) => reason.key !== undefined);
+      if (stray && verdict.fromDrawn) extras.marking = stray.key;
+      const covered = verdict.reasons.flatMap((reason) => reason.transitions ?? reason.places ?? []);
+      if (covered.length > 0) extras.cover = covered.map((id) => [id, 1]);
+      add('PT25', verdict.sound === false ? 'warning' : 'information', null,
+        soundnessSentence(verdict, ctx, workflow, verdict.searched.markings.length), extras);
+    }
+  }
 
   for (const place of net.places) {
     const most = largest.get(place.id) ?? 0;
@@ -88,7 +144,14 @@ export function analyse(net, limits = {}) {
   // for one.
   // A net without a transition has nothing that could be enabled, so there is no
   // deadlock to report in it, only a net that does nothing.
+  const properEnd = atStart ? markingKey(new Map([[workflow.end, 1]])) : null;
   for (const key of net.transitions.length === 0 ? [] : result.deadlocks) {
+    if (key === properEnd) {
+      // The end of a workflow net is where it is meant to stop.
+      add('PT15', 'information', null,
+        `The process ends here, as it should: ${name.get(workflow.end) ?? workflow.end} holds the only token.`);
+      continue;
+    }
     const abstract = readKey(key).some(([, held]) => held === OMEGA);
     add('PT15', abstract ? 'information' : 'warning', null, abstract
       ? `No transition is enabled in the marking ${describe(key, name)}, which stands for a family of markings.`
@@ -182,7 +245,13 @@ export function analyse(net, limits = {}) {
       + 'and a deadlock it did not find can still exist.');
   }
 
-  return { findings, complete: whole, result };
+  return {
+    findings,
+    complete: whole,
+    result,
+    classes: classList,
+    workflow: workflow ? { start: workflow.start, end: workflow.end, sound: verdict ? verdict.sound : null } : null,
+  };
 }
 
 const tokens = (count) => (count === 1 ? 'one token' : `${count} tokens`);

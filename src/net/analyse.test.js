@@ -114,7 +114,7 @@ test('every finding names a rule, a severity and a sentence', () => {
   const { findings } = analyse(readNet(qualityCheck));
 
   for (const finding of findings) {
-    assert.match(finding.rule, /^PT(1[2-9]|2[01])$/);
+    assert.match(finding.rule, /^PT(1[2-9]|2[0-5])$/);
     assert.ok(['error', 'warning', 'information'].includes(finding.severity), finding.severity);
     assert.match(finding.message, /\.$/, `message should be a sentence: ${finding.message}`);
   }
