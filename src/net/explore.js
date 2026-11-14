@@ -16,6 +16,9 @@ import { enabled, fire, initialMarking, markingKey } from './model.js';
 
 export const OMEGA = Infinity;
 
+/** How many new markings between two reports of progress. */
+const PROGRESS_EVERY = 500;
+
 const DEFAULT_LIMITS = {
   markings: 20000,
   milliseconds: 2000,
@@ -24,6 +27,9 @@ const DEFAULT_LIMITS = {
 };
 
 /**
+ * `limits.progress`, a function, is called with `{ markings, edges }` every few
+ * hundred markings and once at the end. It changes nothing about the result.
+ *
  * @returns {{
  *   markings: {key: string, marking: Map<string, number>}[],
  *   edges: {from: string, to: string, transition: string}[],
@@ -36,7 +42,7 @@ const DEFAULT_LIMITS = {
  * }}
  */
 export function explore(net, limits = {}) {
-  const { markings: maxMarkings, milliseconds, now } = { ...DEFAULT_LIMITS, ...limits };
+  const { markings: maxMarkings, milliseconds, now, progress } = { ...DEFAULT_LIMITS, ...limits };
   const until = now() + milliseconds;
 
   const start = initialMarking(net);
@@ -52,6 +58,7 @@ export function explore(net, limits = {}) {
   // seen against every ancestor, not only against the one before it.
   const queue = [{ key: initial, marking: start, ancestors: [] }];
   let stopped = null;
+  let reported = 0;
 
   while (queue.length) {
     if (now() > until) { stopped = 'time'; break; }
@@ -80,11 +87,19 @@ export function explore(net, limits = {}) {
         if (seen.size >= maxMarkings) { stopped = 'markings'; break; }
         seen.set(nextKey, next);
         queue.push({ key: nextKey, marking: next, ancestors: [...ancestors, marking] });
+
+        // Told to whoever asked, so that a long search can show how far it is.
+        if (progress && seen.size - reported >= PROGRESS_EVERY) {
+          reported = seen.size;
+          progress({ markings: seen.size, edges: edges.length });
+        }
       }
     }
 
     if (stopped) break;
   }
+
+  progress?.({ markings: seen.size, edges: edges.length });
 
   return {
     markings: [...seen].map(([key, marking]) => ({ key, marking })),

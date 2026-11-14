@@ -28,6 +28,29 @@ import { readKey } from './model.js';
 export function pathTo(result, key) {
   if (key === result.initial) return { transitions: [], markings: [result.initial] };
 
+  const cameFrom = shortestWays(result);
+  return cameFrom.has(key) ? walkBack(cameFrom, result.initial, key) : null;
+}
+
+const waysOf = new WeakMap();
+
+/**
+ * One breadth first walk from the initial marking over the recorded edges: for
+ * every marking it reaches, the edge it was first reached by. The answer to
+ * "the shortest way to this marking" for every marking at once, kept with the
+ * result it was made from. A search that asks for many markings, a deadlock
+ * after a deadlock or every match of a query, used to walk the edges once for
+ * each; it walks them once.
+ *
+ * Where several equally short ways exist the first edge the search recorded
+ * wins, which is what the walk per marking did, so nothing it answered changes.
+ *
+ * @returns {Map<string, {from: string, to: string, transition: string}>}
+ */
+export function shortestWays(result) {
+  const known = waysOf.get(result);
+  if (known) return known;
+
   const out = new Map();
   for (const edge of result.edges) {
     if (!out.has(edge.from)) out.set(edge.from, []);
@@ -38,18 +61,17 @@ export function pathTo(result, key) {
   const queue = [result.initial];
   const seen = new Set([result.initial]);
 
-  while (queue.length) {
-    const from = queue.shift();
-    for (const edge of out.get(from) ?? []) {
+  for (let at = 0; at < queue.length; at += 1) {
+    for (const edge of out.get(queue[at]) ?? []) {
       if (seen.has(edge.to)) continue;
       seen.add(edge.to);
       cameFrom.set(edge.to, edge);
-      if (edge.to === key) return walkBack(cameFrom, result.initial, key);
       queue.push(edge.to);
     }
   }
 
-  return null;
+  waysOf.set(result, cameFrom);
+  return cameFrom;
 }
 
 function walkBack(cameFrom, initial, key) {

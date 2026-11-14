@@ -40,7 +40,7 @@
     "simulation"
   ],
   "scripts": {
-    "test": "node --test src/net/ src/reachability/ src/layout/ src/findings/",
+    "test": "node --test src/net/ src/reachability/ src/layout/ src/findings/ src/properties/ src/search/",
     "test:browser": "node test/browser/run.mjs",
     "pretest:browser": "playwright install chromium",
     "demo": "node demo/serve.mjs"
