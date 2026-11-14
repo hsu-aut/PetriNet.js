@@ -62,14 +62,24 @@ const result = await page.evaluate(async () => {
 
   const chain = [a, t1, b, t2, c];
   const before = spots(chain);
+
+  // A label belongs to its shape: where it sits relative to the shape must
+  // survive a layout, or the names are left behind where the shapes were.
+  const labelOffsets = () => registry.filter((element) => element.labelTarget).map((label) => ({
+    id: label.id,
+    dx: Math.round(label.x + label.width / 2 - (label.labelTarget.x + label.labelTarget.width / 2)),
+    dy: Math.round(label.y + label.height / 2 - (label.labelTarget.y + label.labelTarget.height / 2)),
+  })).sort((p, q) => p.id.localeCompare(q.id));
+  const labelsBefore = labelOffsets();
   const pnmlBefore = await modeler.savePNML();
 
   document.querySelector('.ptn-arrange-tidy').click();
   const tidied = { spots: spots(chain), note: note() };
+  const labelsTidied = labelOffsets();
 
   // One step of undo, not five.
   commandStack.undo();
-  const undone = { spots: spots(chain), pnml: await modeler.savePNML() };
+  const undone = { spots: spots(chain), pnml: await modeler.savePNML(), labels: labelOffsets() };
   commandStack.redo();
 
   // Lining a selection up. After the layout every shape sits in one row, so one
@@ -81,6 +91,7 @@ const result = await page.evaluate(async () => {
   const selected = { tidyEnabled: !disabled('tidy'), topEnabled: !disabled('top'), spreadEnabled: !disabled('horizontal') };
   document.querySelector('.ptn-arrange-top').click();
   const alignedTop = [where(a), where(b)];
+  const labelsAligned = labelOffsets();
   commandStack.undo();
   const alignUndone = [where(a), where(b)];
   commandStack.redo();
@@ -92,6 +103,7 @@ const result = await page.evaluate(async () => {
   selection.select([registry.get(a.id), registry.get(b.id), registry.get(c.id)]);
   document.querySelector('.ptn-arrange-horizontal').click();
   const spread = [where(a), where(b), where(c)].map((spot) => spot.x).sort((x, y) => x - y);
+  const labelsSpread = labelOffsets();
 
   // The same two things from the keyboard. Sent through the event bus, which is
   // where the modeler's keyboard service delivers a key press: what is checked
@@ -132,6 +144,10 @@ const result = await page.evaluate(async () => {
 
   return {
     before,
+    labelsBefore,
+    labelsTidied,
+    labelsAligned,
+    labelsSpread,
     tidied,
     undone,
     pushed,
@@ -165,6 +181,16 @@ check(xs.every((x, i) => i === 0 || x > xs[i - 1]),
 check(new Set(result.tidied.spots.map((spot) => `${spot.x}/${spot.y}`)).size === 5,
   'two shapes share a spot after tidying up');
 check(/5 shape\(s\) moved/.test(result.tidied.note), `tidying up said '${result.tidied.note}'`);
+
+check(result.labelsBefore.length === 3, `the test net has ${result.labelsBefore.length} labels, not 3 (one per place)`);
+check(JSON.stringify(result.labelsTidied) === JSON.stringify(result.labelsBefore),
+  `tidying up left labels behind: ${JSON.stringify(result.labelsBefore)} became ${JSON.stringify(result.labelsTidied)}`);
+check(JSON.stringify(result.labelsAligned) === JSON.stringify(result.labelsBefore),
+  `lining up left labels behind: ${JSON.stringify(result.labelsAligned)}`);
+check(JSON.stringify(result.labelsSpread) === JSON.stringify(result.labelsBefore),
+  `spreading left labels behind: ${JSON.stringify(result.labelsSpread)}`);
+check(JSON.stringify(result.undone.labels) === JSON.stringify(result.labelsBefore),
+  'one press of undo did not put the labels back');
 
 check(JSON.stringify(result.undone.spots) === JSON.stringify(result.before),
   'one press of undo did not put the net back where it was');

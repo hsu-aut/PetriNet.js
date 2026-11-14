@@ -15,7 +15,9 @@ export default class ArrangeHandler {
 
   preExecute(context) {
     for (const { shape, delta } of context.moves) {
-      this._modeling.moveShape(shape, delta);
+      // moveElements, not moveShape: it takes the label of the shape along,
+      // which moveShape on its own leaves where the shape used to be.
+      this._modeling.moveElements([shape], delta);
     }
   }
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.2
+
+- **Tidy up takes the labels of places along.** It moved the shapes and left their
+  names where the shapes had been. Lining up and spreading were not affected.
+
 ## 0.2.1
 
 - **A run ended from outside takes its play clock with it.** When a host, an
