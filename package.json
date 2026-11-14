@@ -1,6 +1,6 @@
 {
   "name": "petrinetjs",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "Petri net modeler for the browser, based on diagram-js: drawing, PNML, simulation, state space, invariants, siphons and traps.",
   "type": "module",
   "main": "index.js",
@@ -22,6 +22,7 @@
   },
   "files": [
     "index.js",
+    "net.js",
     "src",
     "assets",
     "LICENSE",

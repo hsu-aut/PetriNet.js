@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0
+
+- **The analysis core is a public entry of its own, `petrinetjs/net.js`.** It
+  needs no canvas and no browser: `analyseData(net, limits)` takes a net as plain
+  data and answers with something that survives JSON (no Map, no Infinity). A net
+  that cannot be read gives a `problem` instead of throwing, and a time limit of
+  `null` means none, so the answer is the same on every machine. For hosts such as
+  a command line tool that only have data.
+
 ## 0.2.2
 
 - **Tidy up takes the labels of places along.** It moved the shapes and left their

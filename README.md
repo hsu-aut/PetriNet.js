@@ -86,6 +86,26 @@ await modeler.createNew();              // or: await modeler.importPNML(xml)
 const pnml = await modeler.savePNML();
 ```
 
+## The analysis without a canvas
+
+A host that has a net as data and nothing to draw it on, such as a command line
+tool, uses the core directly:
+
+```js
+import { analyseData } from 'petrinetjs/net.js';
+
+const answer = analyseData(
+  { places: [{ id: 'p', name: 'Idle', marking: 1 }],
+    transitions: [{ id: 't', name: 'Go' }],
+    arcs: [{ id: 'a', source: 'p', target: 't' }] },
+  { markings: 20000, milliseconds: null });   // null: no time limit
+// { problem, complete, stopped, markings, unbounded, findings }
+```
+
+The answer survives `JSON.stringify`. A net that cannot be read gives a
+`problem` and no findings instead of throwing. Without a time limit the answer is
+the same on every machine; the limit on markings still applies.
+
 ## Simulation
 
 ```js
