@@ -1,7 +1,6 @@
 /* The properties card: the selected element, at the right of the canvas. */
 
 .ptn-properties-button {
-  order: 1;
   font: 13px system-ui, -apple-system, "Segoe UI", sans-serif;
   padding: 5px 10px;
   border: 1px solid #d8dbe0;
@@ -24,6 +23,7 @@
 
 /* `display: flex` would beat the browser's own rule for [hidden]. */
 .ptn-properties[hidden],
+.ptn-properties-hint[hidden],
 .ptn-prop-error[hidden] {
   display: none;
 }
@@ -157,5 +157,8 @@
 }
 
 .ptn-properties-note:empty {
-  display: none;
+  /* Not display: none. A live region that appears only when it is filled is often not
+     read out; empty, it takes no room. */
+  padding: 0;
+  margin: 0;
 }

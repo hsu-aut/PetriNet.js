@@ -109,7 +109,25 @@
   align-items: flex-end;
   gap: 8px;
   max-width: calc(100% - 80px);
+  /* A low canvas scrolls the column rather than squeezing the cards to nothing. */
+  overflow-y: auto;
   pointer-events: none;
+}
+
+/* On a narrow canvas the simulation bar reaches under the buttons, so they move
+   down below it, and the column with them. */
+.djs-container {
+  container-type: inline-size;
+}
+
+@container (max-width: 760px) {
+  .ptn-side-row {
+    top: 56px;
+  }
+
+  .ptn-side-column {
+    top: 94px;
+  }
 }
 
 .ptn-side-column > * {
@@ -119,7 +137,6 @@
 /* The findings: a button on the canvas and the list it opens. */
 
 .ptn-findings-button {
-  order: 3;
   font: 13px system-ui, -apple-system, "Segoe UI", sans-serif;
   padding: 5px 10px;
   border: 1px solid #d8dbe0;
@@ -147,10 +164,10 @@
 }
 
 .ptn-findings {
-  flex: 0 1 auto;
-  min-height: 0;
+  flex: 0 0 auto;
   width: 360px;
   max-width: 100%;
+  max-height: 420px;
   display: flex;
   flex-direction: column;
   background: #ffffff;
@@ -280,7 +297,6 @@
 /* The state space: a second view of the same model, beside the drawing. */
 
 .ptn-states-button {
-  order: 2;
   font: 13px system-ui, -apple-system, "Segoe UI", sans-serif;
   padding: 5px 10px;
   border: 1px solid #d8dbe0;

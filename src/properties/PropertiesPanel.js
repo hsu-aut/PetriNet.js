@@ -69,7 +69,7 @@ export default class PropertiesPanel {
     const side = injector.get('side', false);
     eventBus.on('canvas.init', () => {
       if (side) {
-        side.row.append(this._button);
+        side.addButton(this._button, 1);
         side.column.prepend(this._card);
       } else {
         canvas.getContainer().append(this._button, this._card);
@@ -188,15 +188,11 @@ export default class PropertiesPanel {
     this._shown = target;
     this._fields = [];
     this._counts = null;
+    this._silentHint = null;
     this._body.replaceChildren();
     this._note.textContent = '';
 
-    const bo = target.element?.businessObject;
-    const name = bo?.name;
-    const titles = { place: 'Place', transition: 'Transition', arc: 'Arc', net: 'Net', many: 'Selection' };
-    this._heading.textContent = target.kind === 'many'
-      ? titles.many
-      : `${titles[target.kind]}: ${name || (target.kind === 'net' ? target.element.id : target.element.id)}`;
+    this._heading.textContent = this._headingFor(target);
 
     if (target.kind === 'many') {
       this._body.append(make('p', 'ptn-properties-text', target.text));
@@ -208,6 +204,13 @@ export default class PropertiesPanel {
     if (target.kind === 'transition') this._buildTransition(target.element);
     if (target.kind === 'arc') this._buildArc(target.element);
     this._lock();
+  }
+
+  /** "Place: Idle": the kind and the name, or the id where there is no name. */
+  _headingFor(target) {
+    if (target.kind === 'many') return 'Selection';
+    const titles = { place: 'Place', transition: 'Transition', arc: 'Arc', net: 'Net' };
+    return `${titles[target.kind]}: ${target.element.businessObject?.name || target.element.id}`;
   }
 
   _buildNet(root) {
@@ -234,7 +237,9 @@ export default class PropertiesPanel {
       (value) => this._modeling.updateLabel(element, value));
     this._check('Silent', () => Boolean(element.businessObject.isSilent),
       (value) => this._modeling.updateProperty(element, 'isSilent', value, { rerender: true }));
-    this._body.append(make('p', 'ptn-properties-hint', "A silent transition's name is not drawn."));
+    this._silentHint = make('p', 'ptn-properties-hint', "A silent transition's name is not drawn.");
+    this._silentHint.hidden = !element.businessObject.isSilent;
+    this._body.append(this._silentHint);
     this._identifier(element);
   }
 
@@ -317,7 +322,7 @@ export default class PropertiesPanel {
       if (this._locked || input.checked === read()) return;
       const { element } = field;
       setTimeout(() => {
-        if (this._elementRegistry.get(element.id) || element === this._canvas.getRootElement()) write(input.checked);
+        if (this._isCurrent(element)) write(input.checked);
       }, 0);
     });
     return field;
@@ -380,8 +385,15 @@ export default class PropertiesPanel {
     const parsed = field.parse(typed);
 
     if (!parsed.ok) {
-      this._fail(field, parsed.message);
-      if (blurred) field.input.value = stored;
+      // On blur the field goes back to what is stored, and says why in the note, where
+      // it can be read out; on Enter it stays so it can be mended.
+      if (blurred) {
+        field.input.value = stored;
+        this._clear(field);
+        this._say(parsed.message);
+      } else {
+        this._fail(field, parsed.message);
+      }
       return;
     }
     this._clear(field);
@@ -392,16 +404,29 @@ export default class PropertiesPanel {
       return;
     }
 
+    // Enter and then leaving the field is two commits of one value, and the first has not
+    // been written yet when the second asks what is stored.
+    if (field.pendingText !== undefined && field.pendingText === String(parsed.value)) return;
+    field.pendingText = String(parsed.value);
+
     const { element } = field;
-    const root = this._canvas.getRootElement();
     // A commit never runs inside another command: it waits for the one that is
     // running, and is dropped if its element is gone by then.
     setTimeout(() => {
-      if (element !== root && !this._elementRegistry.get(element.id)) return;
-      if (this._locked) return;
+      field.pendingText = undefined;
+      if (!this._isCurrent(element) || this._locked) return;
       field.write(parsed.value);
       if (document.activeElement === field.input) field.input.value = field.read();
     }, 0);
+  }
+
+  /**
+   * Whether this very element is still in the diagram. The id is not enough: an import
+   * that brings the same ids builds new elements, and a command on the old one fails
+   * half way and leaves the command stack stuck.
+   */
+  _isCurrent(element) {
+    return element === this._canvas.getRootElement() || this._elementRegistry.get(element.id) === element;
   }
 
   /** Puts the stored values into the fields, leaving the one being typed in alone. */
@@ -411,6 +436,9 @@ export default class PropertiesPanel {
       const counts = netCounts(this._elementRegistry.getAll());
       this._counts.textContent = `${counts.places} place(s), ${counts.transitions} transition(s), ${counts.arcs} arc(s).`;
     }
+    this._heading.textContent = this._headingFor(this._shown);
+    if (this._silentHint) this._silentHint.hidden = !this._shown.element.businessObject.isSilent;
+
     for (const field of this._fields) {
       if (document.activeElement === field.input) continue;
       if (field.check) field.input.checked = field.read();

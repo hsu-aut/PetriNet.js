@@ -75,7 +75,7 @@ export default class FindingsPanel {
     const side = injector.get('side', false);
     eventBus.on('canvas.init', () => {
       if (side) {
-        side.row.append(this._button);
+        side.addButton(this._button, 3);
         side.column.append(this._container);
       } else {
         canvas.getContainer().append(this._button, this._container);

@@ -15,16 +15,19 @@ export default class UpdateLabelHandler {
     this._modeling = modeling;
     this._textRenderer = textRenderer;
   }
-  setText(element, text, oldText = "") {
+  setText(element, text, oldText = "", restrict = true) {
     // CustomModelerTodo: Add custom logic here to handle label text changes.
     // In the example, arc labels are restricted to integers.
-    if (text !== null && is(element, `${MODELER_PREFIX}:Arc`)) {
+    // Only what a person types is held to the rule. Undo puts back what was there, which
+    // can be a weight an import brought that the rule would refuse.
+    if (restrict && text !== null && is(element, `${MODELER_PREFIX}:Arc`)) {
       // A weight is a whole number of 1 or more. A typed 0 used to pass and was
-      // refused only later, by the analysis.
-      if (!/^\d+$/.test(text) || Number(text) < 1) {
+      // refused only later, by the analysis. Leading zeros go, without turning the
+      // text into a number first, which would round a long one.
+      if (!/^\d+$/.test(text) || /^0+$/.test(text)) {
         text = oldText;
       } else {
-        text = String(Number(text));
+        text = text.replace(/^0+(?=\d)/, "");
       }
     }
 
@@ -112,7 +115,7 @@ export default class UpdateLabelHandler {
 
   revert(context) {
     const { element, oldLabel } = context;
-    return this.setText(element, oldLabel);
+    return this.setText(element, oldLabel, "", false);
   }
 }
 

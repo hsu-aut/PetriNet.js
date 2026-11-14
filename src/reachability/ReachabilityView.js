@@ -94,7 +94,7 @@ export default class ReachabilityView {
 
     const side = injector.get('side', false);
     eventBus.on('canvas.init', () => {
-      if (side) side.row.append(this._button);
+      if (side) side.addButton(this._button, 2);
       canvas.getContainer().append(...(side ? [] : [this._button]), this._container);
     });
 

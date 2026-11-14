@@ -19,4 +19,15 @@ export default class Side {
 
     eventBus.on('canvas.init', () => canvas.getContainer().append(this.row, this.column));
   }
+
+  /**
+   * Puts a button into the row at its place. The order on the screen is the order of
+   * `rank`, and it is the order in the document too, so that the Tab key goes the way
+   * the eye does.
+   */
+  addButton(button, rank) {
+    button.dataset.rank = String(rank);
+    const after = [...this.row.children].find((other) => Number(other.dataset.rank) > rank);
+    this.row.insertBefore(button, after ?? null);
+  }
 }

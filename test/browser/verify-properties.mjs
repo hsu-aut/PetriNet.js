@@ -129,7 +129,50 @@ await field('Silent').check();
 await page.waitForTimeout(100);
 check(await bo(ids.t, 'isSilent') === true, 'silent was not written');
 check(await steps() === before + 1, 'silent took more or less than one step');
-check(/name is not drawn/.test(await page.locator('.ptn-properties-hint').textContent()), 'a silent transition is not told its name is not drawn');
+check(await page.locator('.ptn-properties-hint').isVisible() && /name is not drawn/.test(await page.locator('.ptn-properties-hint').textContent()),
+  'a silent transition is not told its name is not drawn');
+await field('Silent').uncheck();
+await page.waitForTimeout(100);
+check(await page.locator('.ptn-properties-hint').isHidden(), 'a transition that is not silent is told its name is not drawn');
+await field('Silent').check();
+await page.waitForTimeout(100);
+
+// The heading follows the name, whoever changes it.
+await select(ids.a);
+await page.waitForTimeout(50);
+await ev((id) => window.ptn.get('modeling').updateLabel(window.ptn.get('elementRegistry').get(id), 'Renamed on the canvas'), ids.a);
+await page.waitForTimeout(80);
+check(/Place: Renamed on the canvas/.test(await page.locator('.ptn-properties-title').textContent()),
+  `the heading reads '${await page.locator('.ptn-properties-title').textContent()}' after a rename on the canvas`);
+await ev(() => window.ptn.get('commandStack').undo());
+await page.waitForTimeout(80);
+check(!/Renamed on the canvas/.test(await page.locator('.ptn-properties-title').textContent()), 'the heading kept the name after undo');
+
+// Enter and then leaving the field at once is one command, not two.
+await select(ids.t);
+await page.waitForTimeout(50);
+before = await steps();
+await field('Name').fill('Quickly');
+await field('Name').press('Enter');
+await field('Name').press('Tab');
+await page.waitForTimeout(150);
+check(await steps() === before + 1, `Enter and Tab took ${await steps() - before} steps`);
+
+// An import with the same ids while a name is being typed: the typed text must not reach the new elements,
+// and the command stack must keep working.
+await select(ids.a);
+await page.waitForTimeout(50);
+const exported = await ev(() => window.ptn.savePNML());
+await field('Name').fill('Typed, not confirmed');
+await ev((pnml) => window.ptn.importPNML(pnml), exported);
+await page.waitForTimeout(200);
+const afterImport = await ev(async (id) => {
+  const registry = window.ptn.get('elementRegistry');
+  const place = registry.get(id);
+  window.ptn.get('modeling').updateLabel(place, 'Still works');
+  return { name: place.businessObject.name, canUndo: window.ptn.get('commandStack').canUndo() };
+}, ids.a);
+check(afterImport.name === 'Still works', 'the command stack stopped working after an import during typing');
 
 // ── an arc: weight and name ────────────────────────────────────────────────
 await select(ids.second);
@@ -180,10 +223,12 @@ check(!(await bo(ids.b, 'name')), 'a name typed for one place went to the one se
 await button.click();
 check(await card.isHidden(), 'the button did not close the panel');
 await select(ids.a);
-await ev(() => window.ptn.get('eventBus').fire('keyboard.keydown', { keyEvent: new KeyboardEvent('keydown', { key: 'p' }) }));
+await ev(() => window.ptn.get('canvas').focus());
+await page.keyboard.press('p');
 await page.waitForTimeout(80);
 check(await card.isVisible(), 'P did not open the panel');
 check(await page.evaluate(() => document.activeElement?.id?.endsWith('-0')), 'P did not focus the first field');
+check(!(await field('Name').inputValue()).toLowerCase().endsWith('p') || (await field('Name').inputValue()) === await bo(ids.a, 'name'), 'the key P was typed into the field');
 
 // Escape puts the stored value back and leaves the field.
 await field('Name').fill('nope');
@@ -232,6 +277,25 @@ check(boxes.properties.left >= boxes.palette.right && boxes.findings.left >= box
   'a card lies over the palette on a narrow canvas');
 check(boxes.properties.right <= boxes.width && boxes.findings.right <= boxes.width, 'a card runs off the canvas');
 check(boxes.findings.top >= boxes.properties.bottom - 1, 'the cards overlap');
+
+// Every button can be clicked on a narrow canvas: the simulation bar does not lie over them.
+const reachable = await ev(() => [...document.querySelectorAll('.ptn-side-row > button')].map((button) => {
+  const r = button.getBoundingClientRect();
+  const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+  return { text: button.textContent, hit: hit === button || button.contains(hit) };
+}));
+check(reachable.length === 3 && reachable.every((entry) => entry.hit), `buttons under something else at 600 px: ${JSON.stringify(reachable.filter((entry) => !entry.hit))}`);
+check(await ev(() => [...document.querySelectorAll('.ptn-side-row > button')].map((b) => b.textContent.split(' ')[0]).join()) === 'Properties,State,Analyse',
+  'the buttons are not in the order they are shown in');
+
+// A low canvas: the cards keep a readable height, and the column scrolls instead.
+await page.setViewportSize({ width: 1280, height: 330 });
+await page.waitForTimeout(150);
+const low = await ev(() => {
+  const h = (selector) => document.querySelector(selector).getBoundingClientRect().height;
+  return { findings: h('.ptn-findings'), properties: h('.ptn-properties'), column: h('.ptn-side-column') };
+});
+check(low.findings >= 100 && low.properties >= 60, `on a low canvas the cards are ${JSON.stringify(low)}`);
 
 // ── a host can leave it out ────────────────────────────────────────────────
 const second = await browser.newPage();
