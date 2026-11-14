@@ -19,6 +19,8 @@ A change of behaviour in the findings list, hence a new minor version.
   `Findings.clear()` still drops everything.
 - A severity other than `error`, `warning` or `information` in a host finding is
   shown as information instead of producing a class name that exists nowhere.
+- **The palette is no longer covered by the simulation bar.** The bar sat over
+  its first entry; the palette now starts below it.
 - The findings service has node tests of its own now (`src/findings/`).
 - **The browser checks of the modeler live here now** (`test/browser/`, run with
   `npm run test:browser` and in CI): the PNML round trip, labels, tokens as
