@@ -86,7 +86,9 @@ export function analyse(net, limits = {}) {
   // stays a deadlock even where the rest is partial. The exception is a
   // marking holding omega, which stands for a family of markings rather than
   // for one.
-  for (const key of result.deadlocks) {
+  // A net without a transition has nothing that could be enabled, so there is no
+  // deadlock to report in it, only a net that does nothing.
+  for (const key of net.transitions.length === 0 ? [] : result.deadlocks) {
     const abstract = readKey(key).some(([, held]) => held === OMEGA);
     add('PT15', abstract ? 'information' : 'warning', null, abstract
       ? `No transition is enabled in the marking ${describe(key, name)}, which stands for a family of markings.`

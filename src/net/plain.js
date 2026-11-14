@@ -17,7 +17,7 @@ import { readNet } from './model.js';
  *               answer the same on every machine; `markings` stays.
  * @returns {{
  *   problem: string | null,   why the net could not be analysed, else null
- *   complete: boolean,
+ *   complete: boolean,        no stop at a limit and no unbounded place (see PT17)
  *   stopped: 'markings' | 'time' | null,
  *   markings: number,         how many markings were found
  *   unbounded: string[],      ids of places that grow without bound
@@ -36,10 +36,12 @@ export function analyseData(data, limits = {}) {
     return { problem: error.message, complete: false, stopped: null, markings: 0, unbounded: [], findings: [] };
   }
 
-  const { findings, result } = analyse(net, used);
+  const { findings, complete, result } = analyse(net, used);
   return {
     problem: null,
-    complete: result.complete,
+    // Whether the answer is the whole truth: the search finished and no place
+    // grows without bound. That is `complete` of analyse(), not the search's own.
+    complete,
     stopped: result.stopped,
     markings: result.markings.length,
     unbounded: [...result.unbounded],

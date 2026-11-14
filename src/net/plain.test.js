@@ -20,7 +20,7 @@ for (const [name, data] of nets) {
     const direct = analyse(readNet(data));
     assert.deepEqual(again.findings, JSON.parse(JSON.stringify(direct.findings)));
     assert.equal(answer.problem, null);
-    assert.equal(answer.complete, direct.result.complete);
+    assert.equal(answer.complete, direct.complete);
     assert.equal(answer.markings, direct.result.markings.length);
   });
 }
@@ -78,4 +78,16 @@ test('an empty net can be analysed', () => {
   const answer = analyseData({});
   assert.equal(answer.problem, null);
   assert.equal(typeof answer.complete, 'boolean');
+});
+
+test('a net that grows without bound is not complete, although the search finished', () => {
+  const answer = analyseData(fixtures.producer, { milliseconds: null });
+  assert.equal(answer.stopped, null);
+  assert.equal(answer.complete, false);
+  assert.ok(answer.findings.some((finding) => finding.rule === 'PT17'));
+});
+
+test('a net without a transition reports no deadlock', () => {
+  const answer = analyseData({ places: [{ id: 'p', name: 'P', marking: 1 }] });
+  assert.equal(answer.findings.some((finding) => finding.rule === 'PT15'), false);
 });

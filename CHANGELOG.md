@@ -8,6 +8,11 @@
   that cannot be read gives a `problem` instead of throwing, and a time limit of
   `null` means none, so the answer is the same on every machine. For hosts such as
   a command line tool that only have data.
+- **A net without a transition reports no deadlock.** Nothing is enabled in it
+  because there is nothing to enable; before, the list called the initial marking
+  a deadlock. This applies to the list on the canvas as well.
+- `analyseData` reports `complete` as `analyse()` does: false also where a place
+  grows without bound, not only where the search stopped at a limit.
 
 ## 0.2.2
 
