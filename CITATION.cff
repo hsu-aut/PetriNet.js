@@ -1,0 +1,35 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "PetriNet.js"
+abstract: >-
+  A browser-based modeler for place/transition Petri nets with simulation,
+  analysis of behaviour (boundedness, deadlocks, liveness, invariants, siphons
+  and traps), state space view and PNML import and export. A fork of ptn-js by
+  Maximilian König and the Business Process Technology group, built on
+  diagram-js.
+authors:
+  - family-names: Nabizada
+    given-names: Hamied
+    affiliation: "Helmut Schmidt University / University of the Federal Armed Forces Hamburg"
+version: 0.3.0
+date-released: 2026-11-14
+license: MIT
+repository-code: "https://github.com/hsu-aut/PetriNet.js"
+keywords:
+  - Petri net
+  - place/transition net
+  - PNML
+  - modeler
+  - simulation
+  - state space analysis
+references:
+  - type: software
+    title: "openbpt-modeler-petri-net (ptn-js)"
+    authors:
+      - family-names: König
+        given-names: Maximilian
+      - name: "Business Process Technology, Hasso Plattner Institute"
+    license: MIT
+    repository-code: "https://github.com/bptlab/openbpt-modeler-petri-net"
+    notes: "The modeler this software is a fork of."
