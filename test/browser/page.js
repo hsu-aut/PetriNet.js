@@ -4,7 +4,11 @@
  */
 import { PnModeler } from '../../index.js';
 
-const modeler = new PnModeler({ container: document.getElementById('canvas') });
+// ?properties=off leaves the properties panel out, as a host that does not want it would.
+const options = { container: document.getElementById('canvas') };
+if (new URLSearchParams(location.search).get('properties') === 'off') options.propertiesPanel = false;
+
+const modeler = new PnModeler(options);
 await modeler.createNew();
 
 window.ptn = modeler;

@@ -40,6 +40,8 @@ import CustomPopupMenuModule from "./popup-menu";
 // Firing the net on the canvas. This replaces the token replay of the package
 // this is forked from, which wrote the simulated marking into the model, had
 // no history and took the undo stack for its own.
+import SideModule from "./ui";
+import PropertiesModule from "./properties";
 import SimulationModule from "./simulation";
 // What the net does, as a list beside the drawing.
 import FindingsModule from "./findings";
@@ -89,8 +91,10 @@ export default class CustomModeler extends BaseViewer {
       CustomAutoPlaceModule,
       CustomRulesModule,
       CustomPopupMenuModule,
+      SideModule,
       SimulationModule,
       FindingsModule,
+      PropertiesModule,
       ReachabilityModule,
       HighlightModule,
       ArrangeModule,

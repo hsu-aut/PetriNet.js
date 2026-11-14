@@ -27,9 +27,9 @@ const ENABLED_CLASS = 'ptn-enabled';
 const RUNNING_CLASS = 'ptn-simulation-running';
 
 export default class Simulation {
-  static $inject = ['eventBus', 'elementRegistry', 'canvas', 'graphicsFactory'];
+  static $inject = ['eventBus', 'elementRegistry', 'canvas', 'graphicsFactory', 'injector'];
 
-  constructor(eventBus, elementRegistry, canvas, graphicsFactory) {
+  constructor(eventBus, elementRegistry, canvas, graphicsFactory, injector) {
     this._eventBus = eventBus;
     this._elementRegistry = elementRegistry;
     this._canvas = canvas;
@@ -58,6 +58,12 @@ export default class Simulation {
         this._say(`${name(element)} cannot fire in this marking.`);
       }
       return false;
+    });
+
+    // A name typed during a run would end the run when it is committed, so the
+    // editor for it is not opened while one is on.
+    eventBus.on('directEditing.activate', () => {
+      if (this._active) injector.get('directEditing', false)?.cancel();
     });
 
     // The backstop for rule 3. Editing is refused by the rules, but undo, redo

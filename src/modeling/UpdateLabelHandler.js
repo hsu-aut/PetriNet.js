@@ -19,8 +19,12 @@ export default class UpdateLabelHandler {
     // CustomModelerTodo: Add custom logic here to handle label text changes.
     // In the example, arc labels are restricted to integers.
     if (text !== null && is(element, `${MODELER_PREFIX}:Arc`)) {
-      if (!/^\d+$/.test(text)) {
+      // A weight is a whole number of 1 or more. A typed 0 used to pass and was
+      // refused only later, by the analysis.
+      if (!/^\d+$/.test(text) || Number(text) < 1) {
         text = oldText;
+      } else {
+        text = String(Number(text));
       }
     }
 

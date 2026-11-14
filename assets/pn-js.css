@@ -2,6 +2,7 @@
 @import "bpmn-font/dist/css/bpmn.css";
 @import url("./icons/css/pn.css");
 @import url("./simulation.css");
+@import url("./properties.css");
 
 /* Overwriting diagram-js classes */
 .djs-context-pad .entry.active {

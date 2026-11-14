@@ -38,9 +38,9 @@ const MOST_NODES = 300;
 const LABELS_UP_TO = 60;
 
 export default class ReachabilityView {
-  static $inject = ['eventBus', 'canvas', 'elementRegistry', 'simulation'];
+  static $inject = ['eventBus', 'canvas', 'elementRegistry', 'simulation', 'injector'];
 
-  constructor(eventBus, canvas, elementRegistry, simulation) {
+  constructor(eventBus, canvas, elementRegistry, simulation, injector) {
     this._eventBus = eventBus;
     this._canvas = canvas;
     this._elementRegistry = elementRegistry;
@@ -92,8 +92,10 @@ export default class ReachabilityView {
     this._button.title = 'Every marking the net can reach, and the firings between them';
     this._button.addEventListener('click', () => this.show());
 
+    const side = injector.get('side', false);
     eventBus.on('canvas.init', () => {
-      canvas.getContainer().append(this._button, this._container);
+      if (side) side.row.append(this._button);
+      canvas.getContainer().append(...(side ? [] : [this._button]), this._container);
     });
 
     // A changed net makes the graph wrong, and a wrong graph is worse than none.

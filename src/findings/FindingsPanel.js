@@ -72,8 +72,14 @@ export default class FindingsPanel {
     this._button.title = BUTTON_TITLE;
     this._button.addEventListener('click', () => this.analyse());
 
+    const side = injector.get('side', false);
     eventBus.on('canvas.init', () => {
-      canvas.getContainer().append(this._button, this._container);
+      if (side) {
+        side.row.append(this._button);
+        side.column.append(this._container);
+      } else {
+        canvas.getContainer().append(this._button, this._container);
+      }
     });
 
     eventBus.on('findings.changed', (event) => this._update(event));

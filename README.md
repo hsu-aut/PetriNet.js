@@ -68,7 +68,7 @@ it work is theirs; the changes below are this fork's.
 ## Install
 
 ```bash
-npm install github:hsu-aut/PetriNet.js#v0.4.0
+npm install github:hsu-aut/PetriNet.js#v0.5.0
 ```
 
 The package is called `petrinetjs`. It is not on npm yet, so it is installed
@@ -85,6 +85,32 @@ const modeler = new PnModeler({ container: document.querySelector('#canvas') });
 await modeler.createNew();              // or: await modeler.importPNML(xml)
 const pnml = await modeler.savePNML();
 ```
+
+## The properties panel
+
+A "Properties" button at the top right opens a card with the properties of the
+selected element: name and initial marking of a place, name and "silent" of a
+transition, weight and name of an arc, and the name and the counts of the net when
+nothing is selected. The id is shown and can be copied but not changed: a host may
+match its own elements by it. P opens the panel and puts the cursor in its first
+field.
+
+Each change is one command, so undo, redo and the host's `changed` work as for any
+edit. A text field commits on Enter and on leaving it, never on a key. A value that
+is not a whole number of the right size (a marking below 0, a weight below 1) is
+refused with a reason and written nowhere. While a simulation runs, the fields are
+read only. A weight of 0 typed on the canvas is refused as well.
+
+```js
+new PnModeler({ container, propertiesPanel: false });            // leave it out
+new PnModeler({ container, propertiesPanel: { open: true } });   // start open
+modeler.get('propertiesPanel').open();                           // close(), toggle(), isOpen
+```
+
+Without the option the panel starts closed and then stays as the user left it
+(`localStorage`, key `petrinetjs.properties.open`; a blocked storage is ignored).
+The findings and state space buttons now sit in a row with it, and the findings
+card in a column under that, so that the cards no longer lie on top of each other.
 
 ## Net classes and workflow nets
 

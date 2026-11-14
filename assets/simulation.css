@@ -84,13 +84,42 @@
   top: 60px;
 }
 
-/* The findings: a button on the canvas and the list it opens. */
-
-.ptn-findings-button {
+/* The side of the canvas: a row of buttons at the top right and, under it, a column of
+   the cards they open. The column leaves the bar at the bottom free and keeps clear of
+   the palette. It lets clicks through, so that what lies under its empty part can still
+   be clicked; the cards take them back. */
+.ptn-side-row {
   position: absolute;
   top: 10px;
   right: 10px;
   z-index: 10;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.ptn-side-column {
+  position: absolute;
+  top: 48px;
+  right: 10px;
+  bottom: 56px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  max-width: calc(100% - 80px);
+  pointer-events: none;
+}
+
+.ptn-side-column > * {
+  pointer-events: auto;
+}
+
+/* The findings: a button on the canvas and the list it opens. */
+
+.ptn-findings-button {
+  order: 3;
   font: 13px system-ui, -apple-system, "Segoe UI", sans-serif;
   padding: 5px 10px;
   border: 1px solid #d8dbe0;
@@ -118,12 +147,10 @@
 }
 
 .ptn-findings {
-  position: absolute;
-  top: 48px;
-  right: 10px;
-  z-index: 10;
+  flex: 0 1 auto;
+  min-height: 0;
   width: 360px;
-  max-height: 60%;
+  max-width: 100%;
   display: flex;
   flex-direction: column;
   background: #ffffff;
@@ -253,10 +280,7 @@
 /* The state space: a second view of the same model, beside the drawing. */
 
 .ptn-states-button {
-  position: absolute;
-  top: 10px;
-  right: 92px;
-  z-index: 10;
+  order: 2;
   font: 13px system-ui, -apple-system, "Segoe UI", sans-serif;
   padding: 5px 10px;
   border: 1px solid #d8dbe0;

@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.5.0
+
+- **A properties panel** for the selected element, opened by a button at the top
+  right or by P. Name and marking of a place, name and "silent" of a transition,
+  weight and name of an arc, name and counts of the net, and the id (shown, not
+  editable). One command per change, checked before anything is written, read only
+  while a simulation runs. Option `propertiesPanel` (`false` leaves it out, or
+  `{ open: true | false }`), service `propertiesPanel` with `open()`, `close()`,
+  `toggle()`, `isOpen` and the event `propertiesPanel.changed`.
+- **The buttons and cards on the right of the canvas are laid out together**: a row
+  of buttons at the top, a column of cards under it. "Analyse (1 error, 2
+  warnings)" used to run under "State space". The cards stack and keep clear of the
+  palette. A host that styled the old absolute positions needs to look at this.
+- **The name of an arc and of the net can be edited** (in the panel). They were in
+  the model and in PNML but nowhere to type them.
+- **A weight of 0 typed on the canvas is refused**, as in the panel. It used to be
+  accepted and refused only later by the analysis. A weight with leading zeros is
+  written without them.
+- **The label editor does not open while a simulation runs.** A name typed there
+  would have ended the run.
+
 ## 0.4.0
 
 New findings and a change of what Analyse says about workflow nets, hence a new minor
