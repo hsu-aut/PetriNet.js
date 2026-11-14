@@ -68,7 +68,7 @@ it work is theirs; the changes below are this fork's.
 ## Install
 
 ```bash
-npm install github:hsu-aut/PetriNet.js#v0.5.0
+npm install github:hsu-aut/PetriNet.js#v0.6.0
 ```
 
 The package is called `petrinetjs`. It is not on npm yet, so it is installed
@@ -85,6 +85,35 @@ const modeler = new PnModeler({ container: document.querySelector('#canvas') });
 await modeler.createNew();              // or: await modeler.importPNML(xml)
 const pnml = await modeler.savePNML();
 ```
+
+## The search in a worker
+
+Analyse and the state space search the markings of the net, which takes seconds on
+a net of some size. They run in a Web Worker, so the canvas stays usable: the list
+says "Analysing: 12 345 markings so far, at most 20 000" and has a Stop button, and
+an edit or an import ends the search and says that the net changed.
+
+The worker is started from a Blob, built into the package (`src/search/workerSource.js`,
+made by `npm run build:worker`), so a host needs no build step for it. A page whose
+policy forbids it (`worker-src` without `blob:`), a browser without workers, Node
+and a host that asks for it with `new PnModeler({ container, search: { worker: false } })`
+get the same searches on the page, with the same limits, and a note on the console
+once. `modeler.get('search').mode` says which it is.
+
+**This changes the API.** The methods that search return promises:
+
+```js
+const found = await modeler.get('findings').analyse();   // the findings, or null if it was stopped
+await modeler.get('findingsPanel').analyse();            // opens the list at once, then analyses
+const state = await modeler.get('reachabilityView').show();
+const said = await modeler.get('reachabilityView').ask('Idle = 1');
+modeler.get('findings').cancel();                        // Stop
+await modeler.get('search').idle();                      // nothing is running
+```
+
+`null` means the search ended without an answer: stopped, or the net changed meanwhile.
+`findings.busy`, `findings.progress` and `reachabilityView.busy` say what is running.
+The limits are unchanged (20000 markings, 2 s).
 
 ## The properties panel
 
