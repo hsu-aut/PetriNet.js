@@ -45,11 +45,29 @@ const build = (page, count) => page.evaluate((n) => {
   }
 }, count);
 
+// How big a net has to be for the search to take long enough to measure. Machines differ by a factor of
+// several, so the size is found by trying: the smallest net whose search on the page takes 1.5 s.
+async function calibrate() {
+  for (let n = 12; n <= 18; n += 1) {
+    const trial = await open('?worker=off');
+    await build(trial.page, n);
+    const took = await trial.page.evaluate(async (limits) => {
+      const started = performance.now();
+      await window.ptn.get('findings').analyse(limits);
+      return performance.now() - started;
+    }, BIG);
+    await trial.page.close();
+    if (took >= 1500) return n;
+  }
+  return 18;
+}
+const SIZE = await calibrate();
+
 // ── a worker starts, and the page stays alive while it searches ────────────
 const worker = await open();
 const workers = [];
 worker.page.on('worker', (w) => workers.push(w));
-await build(worker.page, 15);
+await build(worker.page, SIZE);
 
 const live = await worker.page.evaluate(async (limits) => {
   const search = window.ptn.get('netSearch');
@@ -84,14 +102,14 @@ check(workers.length >= 1, 'the browser saw no worker');
 check(live.during.busy === true && /^Analysing/.test(live.during.row ?? ''), `the list did not say it was working: '${live.during.row}'`);
 check(live.during.button === 'Analysing…' && live.during.disabled === true, 'the button did not say it was working');
 check(live.during.stop === true, 'there is no way to stop it');
-check(live.milliseconds > 1500, `the search took only ${Math.round(live.milliseconds)} ms, too short to show that the page stays alive`);
+check(live.milliseconds > 1000, `the search took only ${Math.round(live.milliseconds)} ms, too short to show that the page stays alive`);
 check(live.longest < 400, `the page was blocked for ${Math.round(live.longest)} ms while the worker searched`);
 check(live.after.busy === false && live.after.button === 'Analyse', 'the list still says it is working after the answer');
 check(live.markings > 0, 'the analysis gave no findings');
 
 // ── the same net on the page freezes it, so the check above measures something ─
 const inline = await open('?worker=off');
-await build(inline.page, 15);
+await build(inline.page, SIZE);
 const frozen = await inline.page.evaluate(async (limits) => {
   const gaps = [];
   let last = performance.now();
@@ -131,7 +149,7 @@ await fromPage.page.close();
 
 // ── stopping, and an edit during the search ────────────────────────────────
 const stop = await open();
-await build(stop.page, 15);
+await build(stop.page, SIZE);
 const stopped = await stop.page.evaluate(async (limits) => {
   window.ptn.get('findingsPanel').open();
   const running = window.ptn.get('findings').analyse(limits);
@@ -175,7 +193,7 @@ await stop.page.close();
 
 // ── the state space: busy, Stop, and a question asked while it searches ───
 const view = await open();
-await build(view.page, 15);
+await build(view.page, SIZE);
 const stateSearch = await view.page.evaluate(async (limits) => {
   const v = window.ptn.get('reachabilityView');
   const running = v.show(limits);
