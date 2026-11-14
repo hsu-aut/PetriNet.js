@@ -37,7 +37,10 @@ it work is theirs; the changes below are this fork's.
   and took the undo stack for its own. This one holds the marking beside the
   model, so a document saved during a run is the net the user drew.
 - **A findings list** (`src/findings/`) that says what the net does and leads to
-  the element a finding is about. A host can add its own findings to it.
+  the element a finding is about. A host can add its own findings to it; they
+  stay until the host sends a list again, while an edit drops only what the
+  analysis computed. While the list is closed the Analyse button carries the
+  host's count of errors and warnings.
 - **The state space** (`src/reachability/`) as a second view: every marking the
   net can reach, the firings between them, and a click that walks the net into
   one of them. A query line answers whether the net can reach a marking the
@@ -65,7 +68,7 @@ it work is theirs; the changes below are this fork's.
 ## Install
 
 ```bash
-npm install github:hsu-aut/PetriNet.js#v0.1.0
+npm install github:hsu-aut/PetriNet.js#v0.2.0
 ```
 
 The package is called `petrinetjs`. It is not on npm yet, so it is installed
@@ -105,7 +108,7 @@ numbers instead, and `findings.analyse()` answers for any size.
 
 ```js
 modeler.get('findings').analyse();           // boundedness, deadlocks, invariants, siphons
-modeler.get('findings').setHostFindings([]); // findings of your own, in the same list
+modeler.get('findings').setHostFindings([]); // findings of your own, in the same list; they survive edits
 modeler.get('findings').wayTo(finding);      // the firings that lead to what it is about
 modeler.get('reachabilityView').show();      // the state space beside the net
 modeler.get('reachabilityView').ask('p1 = 2, p2 = 0');  // can it reach that?

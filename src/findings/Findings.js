@@ -32,13 +32,19 @@ export default class Findings {
     this._analysis = null;
     this._net = null;
 
-    // An edited net makes the findings stale, which is worse than no findings:
-    // a reader trusts a list that is on the screen. Saying so is not the same
-    // as saying that the net is fine, hence the flag.
+    // An edited net makes the computed findings stale, which is worse than no
+    // findings: a reader trusts a list that is on the screen. Saying so is not
+    // the same as saying that the net is fine, hence the flag. The host's
+    // findings stay where they are until the host sends new ones, because only
+    // the host can say whether the edit cured them; the list is drawn again,
+    // so that a finding about an element that is gone stops being a link.
     eventBus.on(['commandStack.changed', 'import.done'], () => {
       if (!this._own.length && !this._fromHost.length) return;
-      this.clear();
-      this._stale = true;
+
+      if (this._own.length) {
+        this._dropOwn();
+        this._stale = true;
+      }
       this._changed();
     });
   }
@@ -50,7 +56,22 @@ export default class Findings {
     );
   }
 
-  /** Whether the list was dropped because the net changed under it. */
+  /** The findings the host handed in, errors first. */
+  get host() {
+    return [...this._fromHost].sort(
+      (a, b) => (ORDER[a.severity] ?? 3) - (ORDER[b.severity] ?? 3),
+    );
+  }
+
+  /** How many errors and warnings the host found, for a button that says so. */
+  get hostCounts() {
+    return {
+      errors: this._fromHost.filter((finding) => finding.severity === 'error').length,
+      warnings: this._fromHost.filter((finding) => finding.severity === 'warning').length,
+    };
+  }
+
+  /** Whether the computed findings were dropped because the net changed. */
   get stale() {
     return this._stale;
   }
@@ -86,27 +107,38 @@ export default class Findings {
 
   /**
    * Findings from the host, which knows about the document the net sits in.
-   * They are kept apart from the computed ones so that analysing again does
-   * not drop them.
+   * They are kept apart from the computed ones: analysing again does not drop
+   * them, and neither does an edit. They stay until the host sends the list
+   * again, or an empty one.
+   *
+   * @param {{rule?: string, severity?: string, element?: string, message?: string}[]} findings
+   *   `element` is the id of a shape on the canvas, which the row leads to for
+   *   as long as that shape is there.
    */
   setHostFindings(findings) {
     this._fromHost = (findings ?? []).map((finding) => ({
       rule: finding.rule ?? '',
-      severity: finding.severity ?? 'information',
+      severity: Object.hasOwn(ORDER, finding.severity) ? finding.severity : 'information',
       element: finding.element ?? null,
       message: finding.message ?? '',
     }));
     this._changed();
   }
 
+  /** Drops everything: the computed findings, the host's, and the reason. */
   clear() {
-    this._own = [];
+    this._dropOwn();
     this._fromHost = [];
-    this._problem = null;
     this._stale = false;
+    this._changed();
+  }
+
+  /** The computed findings and what they were computed from. */
+  _dropOwn() {
+    this._own = [];
+    this._problem = null;
     this._analysis = null;
     this._net = null;
-    this._changed();
   }
 
   /** The net the findings are about, as the core read it, or null. */

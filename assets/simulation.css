@@ -93,6 +93,17 @@
   cursor: pointer;
 }
 
+/* The host's check found something and the list is closed. */
+.ptn-findings-button-error {
+  border-color: #d93025;
+  color: #b3261e;
+}
+
+.ptn-findings-button-warning {
+  border-color: #e37400;
+  color: #8a4b00;
+}
+
 /* `display: flex` below beats the browser's own rule for [hidden], so a panel
    that is closed has to be hidden here as well. */
 .ptn-findings[hidden],

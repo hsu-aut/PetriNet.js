@@ -11,6 +11,7 @@ import { findingsToCsv } from '../net/report.js';
 import { nameFor, offerFile } from '../ui/download.js';
 
 const SEVERITY_MARK = { error: '✖', warning: '⚠', information: 'ℹ' };
+const BUTTON_TITLE = 'What the net does: boundedness, deadlocks, invariants';
 
 export default class FindingsPanel {
   static $inject = ['eventBus', 'canvas', 'findings', 'selection', 'injector'];
@@ -67,7 +68,7 @@ export default class FindingsPanel {
     this._button.type = 'button';
     this._button.className = 'ptn-findings-button';
     this._button.textContent = 'Analyse';
-    this._button.title = 'What the net does: boundedness, deadlocks, invariants';
+    this._button.title = BUTTON_TITLE;
     this._button.addEventListener('click', () => this.analyse());
 
     eventBus.on('canvas.init', () => {
@@ -113,11 +114,31 @@ export default class FindingsPanel {
   open() {
     this._open = true;
     this._container.hidden = false;
+    this._markButton();
   }
 
   close() {
     this._open = false;
     this._container.hidden = true;
+    this._markButton();
+  }
+
+  /**
+   * With the list closed the button carries what the host found: the host
+   * checks the net by itself, so a reader who has not opened anything still
+   * learns that there is something to look at. An open list says it itself.
+   */
+  _markButton() {
+    const { errors, warnings } = this._findings.hostCounts;
+    const counts = [];
+    if (errors) counts.push(`${errors} error${errors === 1 ? '' : 's'}`);
+    if (warnings) counts.push(`${warnings} warning${warnings === 1 ? '' : 's'}`);
+
+    const show = !this._open && counts.length > 0;
+    this._button.textContent = show ? `Analyse (${counts.join(', ')})` : 'Analyse';
+    this._button.title = show ? `The check of the net found ${counts.join(' and ')}. ${BUTTON_TITLE}` : BUTTON_TITLE;
+    this._button.classList.toggle('ptn-findings-button-error', show && errors > 0);
+    this._button.classList.toggle('ptn-findings-button-warning', show && errors === 0);
   }
 
   _say(message) {
@@ -128,6 +149,7 @@ export default class FindingsPanel {
   _update({ findings, problem, stale }) {
     this._list.replaceChildren();
     this._say(null);
+    this._markButton();
 
     if (problem) {
       this._title.textContent = 'The net could not be read';
@@ -157,6 +179,16 @@ export default class FindingsPanel {
       }
       this._addActions(item, finding);
       this._list.appendChild(item);
+    }
+
+    // The host's findings outlive an edit and the computed ones do not. A list
+    // that holds only the first would read as an analysis that found nothing
+    // more, so it says what is missing.
+    if (stale && findings.length > 0) {
+      this._list.appendChild(row({
+        severity: 'information',
+        message: 'The net changed, so what Analyse found was dropped. Analyse again.',
+      }));
     }
   }
 

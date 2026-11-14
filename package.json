@@ -1,6 +1,6 @@
 {
   "name": "petrinetjs",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Petri net modeler for the browser, based on diagram-js: drawing, PNML, simulation, state space, invariants, siphons and traps.",
   "type": "module",
   "main": "index.js",
@@ -39,7 +39,7 @@
     "simulation"
   ],
   "scripts": {
-    "test": "node --test src/net/ src/reachability/ src/layout/",
+    "test": "node --test src/net/ src/reachability/ src/layout/ src/findings/",
     "demo": "node demo/serve.mjs"
   },
   "dependencies": {
