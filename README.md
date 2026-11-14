@@ -135,8 +135,13 @@ button, on http://127.0.0.1:5180.
 ## Tests
 
 ```bash
-npm test
+npm test                 # the analysis core and the layout, in Node
+npm run test:browser     # the modeler in Chromium: simulation, findings, state space, export, PNML
 ```
+
+The browser checks (`test/browser/`) drive the modeler on a page of its own with
+Playwright. `npm run test:browser` installs Chromium first; one check can be run
+alone with `node test/browser/run.mjs simulation`.
 
 ## License
 

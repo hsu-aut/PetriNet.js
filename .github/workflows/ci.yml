@@ -1,5 +1,6 @@
 # The analysis core, the paths, the structure, the reports and the layout in
-# Node, on every push to main and every pull request. They need no browser.
+# Node, then the modeler itself in a real browser (simulation, findings, state
+# space, export, layout, PNML), on every push to main and every pull request.
 name: CI
 
 on:
@@ -11,7 +12,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -20,3 +21,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      - name: Install the browser
+        run: npx playwright install --with-deps chromium
+      - name: Test the modeler in a browser
+        run: node test/browser/run.mjs

@@ -20,6 +20,10 @@ A change of behaviour in the findings list, hence a new minor version.
 - A severity other than `error`, `warning` or `information` in a host finding is
   shown as information instead of producing a class name that exists nowhere.
 - The findings service has node tests of its own now (`src/findings/`).
+- **The browser checks of the modeler live here now** (`test/browser/`, run with
+  `npm run test:browser` and in CI): the PNML round trip, labels, tokens as
+  dots, numbers, pages, the simulation, the findings, the state space, the ways
+  into markings, invariants, steps, the exports and the layout.
 
 ## 0.1.0
 
