@@ -1,10 +1,25 @@
 {
-  "name": "petrinet-js",
+  "name": "petrinetjs",
   "version": "0.1.0",
-  "description": "Petri net modeler for the browser, based on diagram-js, with a lossless PNML reader and writer.",
+  "description": "Petri net modeler for the browser, based on diagram-js: drawing, PNML, simulation, state space, invariants, siphons and traps.",
   "type": "module",
   "main": "index.js",
   "license": "MIT",
+  "author": "Hamied Nabizada",
+  "contributors": [
+    "Maximilian König (ptn-js, the original)"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hsu-aut/PetriNet.js.git"
+  },
+  "homepage": "https://github.com/hsu-aut/PetriNet.js#readme",
+  "bugs": {
+    "url": "https://github.com/hsu-aut/PetriNet.js/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
   "files": [
     "index.js",
     "src",
@@ -15,10 +30,13 @@
     "!src/net/fixtures.js"
   ],
   "keywords": [
+    "diagram-js",
+    "invariants",
+    "modeler",
     "petri-net",
     "pnml",
-    "diagram-js",
-    "modeler"
+    "reachability-graph",
+    "simulation"
   ],
   "scripts": {
     "test": "node --test src/net/ src/reachability/ src/layout/",

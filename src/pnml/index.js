@@ -13,7 +13,7 @@
  *     breaks round trips.
  *
  * This implementation is DOM based (DOMParser/XMLSerializer, both available in
- * the WebView2 host) and writes the graphics elements ISO/IEC 15909-2 already
+ * every current browser) and writes the graphics elements ISO/IEC 15909-2 already
  * provides for, so the result stays standard PNML.
  *
  * BaseViewer imports it directly, so importPNML() and savePNML() use it.

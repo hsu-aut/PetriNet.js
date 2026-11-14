@@ -1,4 +1,4 @@
-# petrinet-js
+# PetriNet.js
 
 A Petri net modeler for the browser: places, transitions, arcs with weights,
 markings, PNML import and export, and a simulation that fires the net on the
@@ -62,11 +62,21 @@ it work is theirs; the changes below are this fork's.
   tools are carried through, although the canvas itself has one plane and no
   pages.
 
+## Install
+
+```bash
+npm install github:hsu-aut/PetriNet.js#v0.1.0
+```
+
+The package is called `petrinetjs`. It is not on npm yet, so it is installed
+from a tag of this repository. It needs a bundler that resolves the `@import`
+lines of the stylesheet, as esbuild, Vite and webpack do.
+
 ## Use
 
 ```js
-import { PnModeler } from 'petrinet-js';
-import 'petrinet-js/assets/pn-js.css';
+import { PnModeler } from 'petrinetjs';
+import 'petrinetjs/assets/pn-js.css';
 
 const modeler = new PnModeler({ container: document.querySelector('#canvas') });
 await modeler.createNew();              // or: await modeler.importPNML(xml)
