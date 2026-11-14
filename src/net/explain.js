@@ -26,11 +26,13 @@ export function classSentence(classes, names, ctx, shape) {
   if (!classes.ordinary) {
     text = classes.witness
       ? `not determined. An arc carries more than one token (${classes.witnessText}); the classes and their `
-        + 'theorems are about nets in which every arc carries one. The search answers instead.'
+        + 'theorems are about nets in which every arc carries one. The search answers instead, '
+        + 'except that boundedness can still be proven from place invariants (PT24).'
       : 'not determined.';
   } else if (names.includes('state-machine') && names.includes('marked-graph')) {
-    text = 'state machine and marked graph. The net is one cycle: every transition has one input and one output place, '
-      + 'and every place has one transition before it and one after it. Where its theorem applies, liveness follows from the structure (PT23).';
+    text = 'state machine and marked graph. Every transition has one input and one output place, and every place has '
+      + 'one transition before it and one after it, so the net is made of cycles. '
+      + 'Where its theorem applies, liveness follows from the structure (PT23).';
   } else if (names.includes('state-machine')) {
     text = 'state machine. Every transition takes one token from one place and puts one into one place, so tokens '
       + 'only move around and are never made or used up. Where its theorem applies, liveness follows from the structure (PT23).';
@@ -45,8 +47,7 @@ export function classSentence(classes, names, ctx, shape) {
       + 'decision is never held up by tokens elsewhere. Where its theorem applies, liveness follows from the structure (PT23).';
   } else if (names.includes('asymmetric-choice')) {
     text = 'asymmetric choice. Two places that share a transition either share all of them or the transitions of '
-      + 'one are among those of the other. Only part of what is true of such nets follows from the structure; '
-      + 'the search answers the rest.';
+      + 'one are among those of the other. No theorem about liveness is applied to such nets here; the search answers.';
   } else {
     text = 'none of the classes the theorems cover. Places share transitions in a way that makes a decision depend '
       + 'on tokens elsewhere, so the search answers instead.';
@@ -62,7 +63,8 @@ export function classSentence(classes, names, ctx, shape) {
 export function livenessSentence(found, ctx) {
   if (found.live === null) {
     return 'Liveness from the structure was not decided: the search for siphons stopped at its limit '
-      + `(${found.limit === 'places' ? 'the number of places' : found.limit}), so the theorem cannot be applied.`;
+      + `(${{ places: 'the number of places', sets: 'the number of siphons', steps: 'the number of steps' }[found.limit] ?? found.limit}), `
+      + 'so the theorem cannot be applied.';
   }
 
   const lead = `Proven from the structure (${THEOREM[found.proof]}): `;
@@ -95,13 +97,15 @@ function reasonText(reason, ctx, shape) {
     case 'improper':
       return `${end} can be reached while other places still hold tokens, in the marking ${ctx.describe(reason.key, ctx.name)}`;
     case 'stuck':
-      return `it can get stuck in the marking ${ctx.describe(reason.key, ctx.name)} before ${end} is reached`;
+      return `it can get stuck in the marking ${ctx.describe(reason.key, ctx.name)}, which is not the proper end`;
     case 'cannot-end':
-      return `from the marking ${ctx.describe(reason.key, ctx.name)} ${end} can no longer be reached`;
+      return `from the marking ${ctx.describe(reason.key, ctx.name)} the proper end (one token in ${end} and none elsewhere) can no longer be reached`;
     case 'never-ends':
-      return `${end} can never be reached`;
+      return `the proper end (one token in ${end} and none elsewhere) can never be reached`;
     case 'dead':
       return `${ctx.listed(reason.transitions, ctx.name)} can never fire`;
+    case 'closed-unbounded':
+      return `the net closed from ${end} back to the start is live but not bounded (${ctx.listed(reason.cover, ctx.name)} pile up tokens)`;
     case 'closed-not-live':
       return `the net closed from ${end} back to the start is not live (${ctx.listed(reason.cover, ctx.name)} can run empty and stay empty)`;
     default:
@@ -125,6 +129,10 @@ export function soundnessSentence(verdict, ctx, shape, searchedCount) {
   }
   if (verdict.sound === false) {
     const reasons = verdict.reasons.map((reason) => reasonText(reason, ctx, shape));
+    // A verdict that rests on a theorem says so at the start, as every proof does.
+    if (verdict.proof) {
+      return `Not a sound workflow net, proven from the structure (${THEOREM[verdict.proof] ?? verdict.proof}): ${reasons.join('; ')}. ${WHOLE}`;
+    }
     const cut = verdict.searched.complete ? '' : ' The search stopped at its limit, so there may be more.';
     return `Not a sound workflow net: ${reasons.join('; ')}. ${basis}${cut}`;
   }

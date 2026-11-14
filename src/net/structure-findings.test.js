@@ -120,3 +120,25 @@ test('a proven statement never contradicts a complete search', () => {
     }
   }
 });
+
+test('a verdict from the structure says so, like every proof', () => {
+  // An XOR split into an AND join, behind a chain, with the search cut off after three markings.
+  const data = build({ i: 1, a: 0, b: 0, c: 0, o: 0 }, ['s', 'x', 'y', 'j'],
+    [['i', 's'], ['s', 'a'], ['a', 'x'], ['x', 'b'], ['i', 'y'], ['y', 'c'], ['b', 'j'], ['c', 'j'], ['j', 'o']]);
+  const [verdict] = rule(run(data, { markings: 3, milliseconds: Infinity }), 'PT25');
+  assert.equal(verdict.severity, 'warning');
+  if (verdict.proof) {
+    assert.match(verdict.message, /^Not a sound workflow net, proven from the structure/);
+    assert.ok(verdict.cover?.length > 0, 'the part of the net it is about is not named');
+  } else {
+    assert.match(verdict.message, /^Not a sound workflow net: /);
+  }
+});
+
+test('the reasons do not mix up the place that ends the net with its proper end', () => {
+  const stuck = build({ i: 1, p: 0, q: 0, o: 0 }, ['split', 'x', 'y'],
+    [['i', 'split'], ['split', 'p'], ['split', 'q'], ['p', 'x'], ['q', 'y'], ['x', 'o'], ['y', 'o']]);
+  const [verdict] = rule(run(stuck, { milliseconds: Infinity }), 'PT25');
+  assert.match(verdict.message, /proper end/);
+  assert.doesNotMatch(verdict.message, /before o is reached/);
+});

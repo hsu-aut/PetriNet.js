@@ -59,6 +59,16 @@ test('a loop that makes a token each time round is unbounded, which no sound net
   assert.ok(answer.reasons.some((reason) => reason.kind === 'unbounded' && reason.places.includes('m')));
 });
 
+test('a live closed net with a place no S-component covers is not sound, proven by Hack, with the search cut off', () => {
+  // An AND split into an XOR join: the closed net is live and not bounded.
+  const net = readNet(build({ i: 0, p: 0, q: 0, o: 0 }, ['split', 'x', 'y'],
+    [['i', 'split'], ['split', 'p'], ['split', 'q'], ['p', 'x'], ['q', 'y'], ['x', 'o'], ['y', 'o']]));
+  const answer = soundness(net, workflowShape(net), { markings: 2, milliseconds: Infinity });
+  assert.equal(answer.sound, false);
+  assert.equal(answer.proof, 'hack');
+  assert.ok(answer.reasons.some((reason) => reason.kind === 'closed-unbounded'));
+});
+
 test('the net is checked from one token in the start place, whatever it is drawn with', () => {
   const net = readNet(build({ i: 0, o: 0 }, ['t'], [['i', 't'], ['t', 'o']]));
   const shape = workflowShape(net);
@@ -147,6 +157,7 @@ test('the verdict equals "the closed net is live and bounded" on generated workf
   let sound = 0;
   let unsound = 0;
   let proven = 0;
+  let unsoundProven = 0;
 
   for (let n = 0; n < 1500; n += 1) {
     const net = randomWorkflow(random);
@@ -170,10 +181,12 @@ test('the verdict equals "the closed net is live and bounded" on generated workf
     if (cut.sound !== null && answer.sound !== null && !cut.searched.complete) {
       assert.equal(cut.sound, answer.sound, `with the search cut off the verdict changed: ${JSON.stringify(net)}`);
       if (cut.proof === 'free-choice-workflow') proven += 1;
+      if (cut.sound === false && cut.proof) unsoundProven += 1;
     }
   }
 
   assert.ok(sound >= 100, `only ${sound} sound nets were checked`);
   assert.ok(unsound >= 100, `only ${unsound} unsound nets were checked`);
   assert.ok(proven >= 10, `only ${proven} nets were proven sound from the structure`);
+  assert.ok(unsoundProven >= 5, `only ${unsoundProven} nets were proven unsound from the structure`);
 });

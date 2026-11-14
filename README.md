@@ -102,8 +102,9 @@ generated nets.
 
 The classes are defined for nets in which every arc carries one token. A net with
 a heavier arc is "not determined": the theorems say nothing about it and the
-search answers. The structural statements about liveness need all minimal
-siphons and are not attempted above 40 places.
+search answers. Commoner's theorem needs all minimal siphons and is not
+attempted above 40 places; the statements about state machines and marked
+graphs are decided at any size.
 
 A workflow net is checked from one token in its start place, whatever it is drawn
 with. Drawn with that token, the end place is the proper end of the process and

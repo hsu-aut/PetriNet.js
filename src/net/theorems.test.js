@@ -98,13 +98,15 @@ test('boundedness: a producer is not covered, and with no theorem for it nothing
 });
 
 test('Hack: a live extended free-choice net with a place outside every S-component is unbounded', () => {
-  // p -> t -> {p, q}, q -> u: t puts a token into q each time it fires.
-  const { net, classes } = prepared({ p: 1, q: 0 }, ['t', 'u'], [['p', 't'], ['t', 'p'], ['t', 'q'], ['q', 'u'], ['u', 'p']]);
+  // t takes a token from p and puts one back, and one into q, which nothing takes out.
+  const { net, classes } = prepared({ p: 1, q: 0 }, ['t'], [['p', 't'], ['t', 'p'], ['t', 'q']]);
   const live = livenessFromStructure(net, classes);
-  if (live?.live === true) {
-    const found = boundednessFromStructure(net, classes, live);
-    assert.ok(found === null || typeof found.bounded === 'boolean');
-  }
+  assert.equal(live.live, true);
+
+  const found = boundednessFromStructure(net, classes, live);
+  assert.equal(found.bounded, false);
+  assert.equal(found.proof, 'hack');
+  assert.deepEqual(found.cover, ['q']);
 });
 
 test('S-components are found as sets of places', () => {
@@ -200,6 +202,31 @@ function randomRings(random) {
   return readNet(build(places, transitions, arcs));
 }
 
+/**
+ * Places that all feed the same transitions, which all give back to them: extended
+ * free-choice, and not free-choice once there are two places and two transitions.
+ * This is where the two meanings of "free-choice" part, and random nets almost never
+ * land here.
+ */
+function randomSharedChoice(random) {
+  const placeCount = random.int(2, 3);
+  const transitionCount = random.int(2, 3);
+  const places = {};
+  for (let i = 0; i < placeCount; i += 1) places[`p${i}`] = random.int(0, 2);
+  const transitions = Array.from({ length: transitionCount }, (_, i) => `t${i}`);
+  const arcs = [];
+  for (const place of Object.keys(places)) {
+    for (const transition of transitions) {
+      arcs.push([place, transition]);
+      // Most give the token back; some put it in the next place instead, or take it away.
+      const roll = random.int(0, 9);
+      if (roll < 6) arcs.push([transition, place]);
+      else if (roll < 8) arcs.push([transition, `p${(Number(place.slice(1)) + 1) % placeCount}`]);
+    }
+  }
+  return readNet(build(places, transitions, arcs));
+}
+
 /** State machines and marked graphs, which random nets rarely are. */
 function randomMachine(random, kind) {
   const count = random.int(2, 5);
@@ -232,7 +259,7 @@ const search = (net) => {
 };
 
 test('the theorems agree with the search on random nets', () => {
-  const counts = { sm: 0, mg: 0, commoner: 0, commonerLive: 0, smLive: 0, mgLive: 0, invariants: 0, hackNo: 0, hackYes: 0 };
+  const counts = { efc: 0, efcLive: 0, sm: 0, mg: 0, commoner: 0, commonerLive: 0, smLive: 0, mgLive: 0, invariants: 0, hackNo: 0, hackYes: 0 };
   const random = generator(20261114);
   const nets = [];
   for (let i = 0; i < 4000; i += 1) nets.push(randomNet(random));
@@ -240,6 +267,7 @@ test('the theorems agree with the search on random nets', () => {
   for (let i = 0; i < 4000; i += 1) nets.push(randomNet(random, 1, 3));
   for (let i = 0; i < 600; i += 1) nets.push(randomMachine(random, 'sm'), randomMachine(random, 'mg'));
   for (let i = 0; i < 1500; i += 1) nets.push(randomRings(random));
+  for (let i = 0; i < 1500; i += 1) nets.push(randomSharedChoice(random));
 
   for (const net of nets) {
     const classes = netClasses(net);
@@ -252,6 +280,10 @@ test('the theorems agree with the search on random nets', () => {
       if (found.proof === 'state-machine') counts.sm += 1;
       if (found.proof === 'marked-graph') counts.mg += 1;
       if (found.proof === 'commoner') counts.commoner += 1;
+      if (found.proof === 'commoner' && classes.extendedFreeChoice && !classes.freeChoice) {
+        counts.efc += 1;
+        if (found.live) counts.efcLive += 1;
+      }
       if (found.live && found.proof === 'commoner') counts.commonerLive += 1;
       if (found.live && found.proof === 'state-machine') counts.smLive += 1;
       if (found.live && found.proof === 'marked-graph') counts.mgLive += 1;
@@ -274,6 +306,8 @@ test('the theorems agree with the search on random nets', () => {
   assert.ok(counts.commonerLive >= 10, `only ${counts.commonerLive} nets were proven live by Commoner's theorem`);
   assert.ok(counts.smLive >= 10, `only ${counts.smLive} state machines were proven live`);
   assert.ok(counts.mgLive >= 10, `only ${counts.mgLive} marked graphs were proven live`);
+  assert.ok(counts.efc >= 100, `only ${counts.efc} extended free-choice nets that are not free-choice were decided`);
+  assert.ok(counts.efcLive >= 20, `only ${counts.efcLive} of them were proven live`);
   assert.ok(counts.hackNo >= 20, `only ${counts.hackNo} nets were proven unbounded by Hack's theorem`);
   assert.ok(counts.invariants >= 50, `only ${counts.invariants} nets were bounded by invariants`);
 });

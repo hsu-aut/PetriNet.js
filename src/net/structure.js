@@ -24,7 +24,7 @@
  * is a list of siphons, not the list of them.
  */
 
-const DEFAULT_LIMITS = {
+export const DEFAULT_LIMITS = {
   /** Above this many places the enumeration is not attempted at all. */
   places: 40,
   /** Most sets reported. */

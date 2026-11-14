@@ -15,7 +15,7 @@
 import { initialMarking, markingKey, readKey } from './model.js';
 import { bounds, explore, OMEGA } from './explore.js';
 import { placeInvariants, transitionInvariants } from './invariants.js';
-import { holdsToken, maximalTrap, siphons, traps } from './structure.js';
+import { DEFAULT_LIMITS as STRUCTURE_LIMITS, holdsToken, maximalTrap, siphons, traps } from './structure.js';
 import { classNames, netClasses, workflowShape } from './classes.js';
 import { boundednessFromStructure, livenessFromStructure } from './theorems.js';
 import { drawnAtStart, soundness } from './workflow.js';
@@ -103,7 +103,7 @@ export function analyse(net, limits = {}) {
       if (verdict.proof) extras.proof = verdict.proof;
       const stray = verdict.reasons.find((reason) => reason.key !== undefined);
       if (stray && verdict.fromDrawn) extras.marking = stray.key;
-      const covered = verdict.reasons.flatMap((reason) => reason.transitions ?? reason.places ?? []);
+      const covered = verdict.reasons.flatMap((reason) => reason.transitions ?? reason.places ?? reason.cover ?? []);
       if (covered.length > 0) extras.cover = covered.map((id) => [id, 1]);
       add('PT25', verdict.sound === false ? 'warning' : 'information', null,
         soundnessSentence(verdict, ctx, workflow, verdict.searched.markings.length), extras);
@@ -226,7 +226,7 @@ export function analyse(net, limits = {}) {
 
   if (!foundSiphons.complete || !foundTraps.complete) {
     add('PT20', 'information', null, foundSiphons.stopped === 'places'
-      ? `The net has more than 40 places, so its siphons and traps were not searched for. `
+      ? `The net has more than ${(structureLimits.places ?? STRUCTURE_LIMITS.places)} places, so its siphons and traps were not searched for. `
         + 'The findings above come from the state space, which has its own limits.'
       : 'The search for siphons and traps stopped at its limit, so the sets above are some of them, not all.');
   } else if (foundSiphons.sets.length > MOST_SETS || foundTraps.sets.length > MOST_SETS) {

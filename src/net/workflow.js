@@ -131,6 +131,13 @@ export function soundness(net, shape, limits = {}, drawn = null) {
     if (bounded?.bounded === true) {
       return { sound: true, reasons: [], proof: 'free-choice-workflow', theorem: live.proof, searched, fromDrawn };
     }
+    // Live, and a place that no S-component covers: not bounded, so not sound (Hack).
+    if (bounded?.bounded === false) {
+      return {
+        sound: false, reasons: [{ kind: 'closed-unbounded', cover: bounded.cover }],
+        proof: bounded.proof, theorem: bounded.proof, searched, fromDrawn,
+      };
+    }
   }
 
   return { sound: null, reasons: [], proof: null, searched, fromDrawn };
