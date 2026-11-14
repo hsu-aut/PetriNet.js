@@ -101,7 +101,12 @@ simulation.stop();
 The bar on the canvas does the same. While a simulation runs the net cannot be
 edited: the rules refuse it. A change that does not pass the rules, an undo or
 an import, ends the run rather than leaving a marking on a net that is gone.
-`simulation.changed` says what the net is doing.
+`simulation.changed` says what the net is doing: `active`, `deadlocked` and, when
+a start was refused, `problem`. A host ends a run with `simulation.stop()`, which
+also ends a played run.
+
+`findingsPanel.analyse()` analyses and opens the list on the canvas, as the
+Analyse button does; `findingsPanel.open()` only opens it.
 
 The state space view draws up to 300 markings; a larger one is reported in
 numbers instead, and `findings.analyse()` answers for any size.

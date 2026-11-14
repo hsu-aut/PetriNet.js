@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.1
+
+- **A run ended from outside takes its play clock with it.** When a host, an
+  import or an undo stopped a run while the bar was playing, the clock kept
+  ticking and could fire into the next run. Now the clock stops with the run.
+- The README names `findingsPanel.analyse()` and `open()` and the `problem` of
+  `simulation.changed` for hosts.
+
 ## 0.2.0
 
 A change of behaviour in the findings list, hence a new minor version.

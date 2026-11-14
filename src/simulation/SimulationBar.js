@@ -172,6 +172,10 @@ export default class SimulationBar {
   _update(event) {
     const { active, enabled = [], steps = [], undone = [], deadlocked, problem } = event;
 
+    // A run can end without the bar's own Stop: a host stops it, an import or an
+    // undo does. The clock must not outlive it, or it fires into the next run.
+    if (!active && this._playing) this._pause();
+
     this._container.classList.toggle('ptn-simulation-active', Boolean(active));
     this._buttons.toggle.textContent = active ? 'Stop' : 'Simulate';
     for (const name of ['back', 'step', 'together', 'play', 'reset']) {
