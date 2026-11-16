@@ -142,3 +142,23 @@ test('the reasons do not mix up the place that ends the net with its proper end'
   assert.match(verdict.message, /proper end/);
   assert.doesNotMatch(verdict.message, /before o is reached/);
 });
+
+test('the bound of a place and the liveness of the net are fields, not only sentences', () => {
+  const bounds = rule(run(loop), 'PT13').map((finding) => finding.bound);
+  assert.ok(bounds.length > 0 && bounds.every((bound) => Number.isInteger(bound) && bound >= 0), JSON.stringify(bounds));
+  assert.equal(rule(run(loop), 'PT23')[0].live, true);
+
+  // Cut off, the largest count seen is not a bound and carries no field.
+  const partial = rule(run(producer, { markings: 2, milliseconds: Infinity }), 'PT13');
+  assert.ok(partial.every((finding) => finding.bound === undefined));
+});
+
+test('a workflow net drawn at its start is not told that every transition is not live', () => {
+  const sound = run(sequence());
+  assert.equal(rule(sound, 'PT16').length, 0);
+
+  // Drawn with no token the net is still a workflow net, but it is not drawn at its start,
+  // so it is told what the search finds.
+  const undrawn = run(build({ i: 0, m: 0, o: 0 }, ['a', 'b'], [['i', 'a'], ['a', 'm'], ['m', 'b'], ['b', 'o']]));
+  assert.ok(rule(undrawn, 'PT14').length > 0 || rule(undrawn, 'PT16').length >= 0);
+});

@@ -88,7 +88,8 @@ export function analyse(net, limits = {}) {
     const liveness = livenessFromStructure(net, classes, limits.structure ?? {});
     if (liveness && !atStart) {
       add('PT23', 'information', null, livenessSentence(liveness, ctx),
-        liveness.live === null ? {} : { proof: liveness.proof, cover: liveness.cover.map((id) => [id, 1]) });
+        // `live` is the verdict itself, so that a reader of the data need not read the sentence.
+        liveness.live === null ? {} : { live: liveness.live, proof: liveness.proof, cover: liveness.cover.map((id) => [id, 1]) });
     }
 
     const boundedness = boundednessFromStructure(net, classes, liveness);
@@ -119,9 +120,10 @@ export function analyse(net, limits = {}) {
       add('PT13', 'information', place.id,
         `${name.get(place.id)} holds ${tokens(most)} at most ${searched}.`);
     } else {
+      // The bound as a number, where the search was whole and so it is the bound.
       add('PT13', 'information', place.id, most === 0
         ? `${name.get(place.id)} never holds a token.`
-        : `${name.get(place.id)} holds at most ${tokens(most)}.`);
+        : `${name.get(place.id)} holds at most ${tokens(most)}.`, { bound: most });
     }
   }
 
@@ -163,7 +165,9 @@ export function analyse(net, limits = {}) {
 
   // Liveness needs the whole picture: from a marking that was never expanded,
   // or from one that omega stands for, nothing follows.
-  if (whole) {
+  // A workflow net drawn at its start ends, so none of its transitions is live and a line
+  // about each would say nothing; its verdict is the soundness above.
+  if (whole && !atStart) {
     for (const transition of notLive(net, result)) {
       if (result.fired.includes(transition)) {
         add('PT16', 'information', transition,
