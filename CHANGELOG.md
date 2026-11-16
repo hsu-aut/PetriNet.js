@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.1
+
+- **A picture of the net during a simulation shows the document, not the run.**
+  `saveSVG()` carried the tokens of the run and the green of the enabled
+  transitions, which are not part of the document. It now draws the marking that was
+  typed and marks nothing as enabled, and the run goes on undisturbed.
+  `simulation.asDocument(fn)` does this for a host that draws pictures of its own.
+
 ## 0.6.0
 
 **Breaking.** The methods that search the markings of a net return promises.

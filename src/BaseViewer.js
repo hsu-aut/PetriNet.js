@@ -187,6 +187,13 @@ export default class BaseViewer extends Diagram {
   }
 
   saveSVG() {
+    // The picture shows the document: with a simulation running, the marking that was
+    // typed and no transition marked as enabled, not the marking of the run.
+    const simulation = this.get("simulation", false);
+    return simulation ? simulation.asDocument(() => this._saveSVG()) : this._saveSVG();
+  }
+
+  _saveSVG() {
     const self = this;
 
     return new Promise(function (resolve, reject) {

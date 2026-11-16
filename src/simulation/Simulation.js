@@ -36,6 +36,7 @@ export default class Simulation {
     this._graphicsFactory = graphicsFactory;
 
     this._active = false;
+    this._asDocument = false;
     this._net = null;
     this._marking = null;
     this._steps = [];
@@ -311,12 +312,34 @@ export default class Simulation {
 
   /** Whether the renderer should draw the transition as one that can fire. */
   isReady(transitionId) {
-    return this._active && isEnabled(this._net, this._marking, transitionId);
+    return this._active && !this._asDocument && isEnabled(this._net, this._marking, transitionId);
   }
 
   /** The token count the renderer should draw for a place. */
   markingOf(placeId) {
-    return this._active ? this._marking.get(placeId) ?? 0 : undefined;
+    return this._active && !this._asDocument ? this._marking.get(placeId) ?? 0 : undefined;
+  }
+
+  /**
+   * Runs `fn` with the drawing showing the document and not the run: the marking
+   * that was typed, and no transition marked as enabled. A picture of the net is a
+   * picture of the document, and a run is not part of it. The run itself is not
+   * touched, and the drawing goes back to it when `fn` has returned.
+   *
+   * `fn` is called at once and must do its drawing work before it returns; a
+   * promise that does it later sees the run again.
+   */
+  asDocument(fn) {
+    if (!this._active) return fn();
+
+    this._asDocument = true;
+    this._redraw();
+    try {
+      return fn();
+    } finally {
+      this._asDocument = false;
+      this._redraw();
+    }
   }
 
   _say(message) {
@@ -345,7 +368,8 @@ export default class Simulation {
 
       // The class is for a host that wants to style a running net; the colour
       // itself comes from the renderer, which owns the drawing.
-      if (element.type === 'ptn:Transition') gfx.classList.toggle(ENABLED_CLASS, ready.has(element.id));
+      // A picture of the document marks nothing as enabled.
+      if (element.type === 'ptn:Transition') gfx.classList.toggle(ENABLED_CLASS, !this._asDocument && ready.has(element.id));
       this._graphicsFactory.update('shape', element, gfx);
     }
 
