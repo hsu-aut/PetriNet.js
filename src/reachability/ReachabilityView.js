@@ -452,7 +452,7 @@ export default class ReachabilityView {
       this._note(way.transitions.length === 0
         ? null
         : `${count(way.transitions.length, 'firing')} to here: ${way.transitions.map(this._nameOf, this).join(', ')}. `
-          + 'Step back with ◀ to walk it the other way.');
+          + 'Step back with ◀ to walk it the other way, or press Set as initial marking to start the net here.');
       this._markCurrent();
       return;
     }

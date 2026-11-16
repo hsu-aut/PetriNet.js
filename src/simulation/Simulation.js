@@ -34,6 +34,7 @@ export default class Simulation {
     this._elementRegistry = elementRegistry;
     this._canvas = canvas;
     this._graphicsFactory = graphicsFactory;
+    this._injector = injector;
 
     this._active = false;
     this._asDocument = false;
@@ -313,6 +314,30 @@ export default class Simulation {
   /** Whether the renderer should draw the transition as one that can fire. */
   isReady(transitionId) {
     return this._active && !this._asDocument && isEnabled(this._net, this._marking, transitionId);
+  }
+
+  /** Whether the marking the run shows is not the one the document holds. */
+  get canSetAsInitial() {
+    return this._active && markingKey(this._marking) !== markingKey(initialMarking(this._net));
+  }
+
+  /**
+   * Makes the marking the run shows the initial marking of the net: an edit, as typing the
+   * numbers is, and the only way from a run to the document. The run ends first, with the
+   * reason, so that the change is not read as somebody editing a net that is running; the
+   * drawing does not jump, because the document then holds the tokens the run showed.
+   * Ctrl+Z takes it back, so the focus goes to the drawing, where the keyboard listens.
+   *
+   * @returns {boolean} whether it did anything
+   */
+  setAsInitial() {
+    if (!this.canSetAsInitial) return false;
+
+    const marking = this.marking;
+    this.stop('Its marking is now the initial marking of the net. Ctrl+Z takes it back.');
+    this._injector.get('modeling').setInitialMarking(marking);
+    this._canvas.focus?.();
+    return true;
   }
 
   /** The token count the renderer should draw for a place. */

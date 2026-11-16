@@ -17,6 +17,11 @@ const BUTTONS = [
   { name: 'together', text: '⇉', title: 'Fire everything that can fire at once, as one step' },
   { name: 'play', text: '▶▶', title: 'Fire until nothing is enabled' },
   { name: 'reset', text: '↺', title: 'Back to the initial marking' },
+  {
+    name: 'adopt',
+    text: 'Set as initial marking',
+    title: "Make the marking shown the net's initial marking. This edits the net and ends the run; Ctrl+Z takes it back.",
+  },
 ];
 
 const SPEEDS = [
@@ -48,6 +53,8 @@ export default class SimulationBar {
       button.className = `ptn-simulation-${name}`;
       button.textContent = text;
       button.title = title;
+      // The button that edits the net is there only while a run is on.
+      if (name === 'adopt') button.hidden = true;
       button.addEventListener('click', () => this._click(name));
       this._container.appendChild(button);
       this._buttons[name] = button;
@@ -136,6 +143,7 @@ export default class SimulationBar {
     if (name === 'step') simulation.fireOne();
     if (name === 'together') simulation.fireStep();
     if (name === 'reset') simulation.reset();
+    if (name === 'adopt') simulation.setAsInitial();
     if (name === 'play') this._play();
   }
 
@@ -181,6 +189,9 @@ export default class SimulationBar {
     for (const name of ['back', 'step', 'together', 'play', 'reset']) {
       this._buttons[name].disabled = !active;
     }
+    // Shown only while a run is on, and offered only where it would change something.
+    this._buttons.adopt.hidden = !active;
+    this._buttons.adopt.disabled = !this._simulation.canSetAsInitial;
     this._buttons.back.disabled = !active || steps.length === 0;
     this._buttons.step.disabled = !active || (enabled.length === 0 && undone.length === 0);
     this._buttons.play.disabled = this._buttons.step.disabled;

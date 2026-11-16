@@ -25,6 +25,19 @@
   cursor: pointer;
 }
 
+.ptn-simulation .ptn-simulation-adopt {
+  margin-left: 10px;
+}
+
+.ptn-simulation .ptn-simulation-adopt[hidden] {
+  display: none;
+}
+
+.ptn-simulation button:focus-visible {
+  outline: 2px solid #1a73e8;
+  outline-offset: 1px;
+}
+
 .ptn-simulation button:disabled {
   color: #9aa0a6;
   cursor: default;
