@@ -274,12 +274,21 @@ export default class FindingsPanel {
 
     const way = this._simulation ? this._findings.wayTo(finding) : null;
     if (way) {
+      // A deadlock is a marking the reader is shown the way to. "Not live" and "not sound" are
+      // asked about: why can this never happen again, why does the net not end well.
+      const why = finding.rule === 'PT16' || finding.rule === 'PT25';
+      const into = finding.rule === 'PT16'
+        ? `a marking from which ${this._nameOf(finding.element)} can never fire again`
+        : 'the marking that shows the net is not sound';
+      const count = way.transitions.length;
       actions.push({
-        text: '▶ Way there',
-        title: way.transitions.length === 1
-          ? 'Load the firing that leads to this marking'
-          : `Load the ${way.transitions.length} firings that lead to this marking`,
-        run: () => this._playWay(way.transitions, 'lead there'),
+        text: why ? '▶ Why' : '▶ Way there',
+        title: why
+          ? `Load the ${count === 1 ? 'firing' : `${count} firings`} into ${into}`
+          : (count === 1
+            ? 'Load the firing that leads to this marking'
+            : `Load the ${count} firings that lead to this marking`),
+        run: () => this._playWay(way.transitions, why ? `lead into ${into}` : 'lead there'),
       });
     }
 
@@ -342,14 +351,22 @@ export default class FindingsPanel {
     item.appendChild(box);
   }
 
+  /** The name of a transition or place on the canvas, or its id. */
+  _nameOf(id) {
+    const element = this._findings._elementRegistry?.get(id);
+    return element?.businessObject?.name || id;
+  }
+
   _playWay(transitions, what) {
     if (!this._simulation?.loadRun(transitions)) {
       this._say('The firings could not be loaded: the net is not the one that was analysed.');
       return;
     }
 
+    // "lead there" and "lead into ..." are plural; one firing leads.
+    const single = what.replace(/^lead(?=\s)/, 'leads');
     this._say(transitions.length === 1
-      ? `One firing ${what === 'lead there' ? 'leads there' : what}. Press ▶ in the simulation bar.`
+      ? `One firing ${what === 'return the marking' ? what : single}. Press ▶ in the simulation bar.`
       : `${transitions.length} firings ${what}. Press ▶ in the simulation bar, or ▶▶ to watch them.`);
   }
 
