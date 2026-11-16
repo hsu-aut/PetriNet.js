@@ -186,6 +186,12 @@ The answer survives `JSON.stringify`. A net that cannot be read gives a
 `problem` and no findings instead of throwing. Without a time limit the answer is
 the same on every machine; the limit on markings still applies.
 
+`exploreData(data, limits, format)` does the same for the state space and gives the
+file the state space view saves: `format` is `'dot'` (Graphviz) or `'csv'`, and the
+answer holds `text` beside `problem`, `complete`, `stopped`, `markings`, `edges`,
+`deadlocks` and `unbounded`. `net.js` also exports `explore`, `toDot` and
+`markingsToCsv` for a host that wants the pieces.
+
 ## Simulation
 
 ```js

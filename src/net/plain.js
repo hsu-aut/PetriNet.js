@@ -7,7 +7,9 @@
  * host that only has JSON. This is the one function such a host calls.
  */
 import { analyse } from './analyse.js';
+import { explore } from './explore.js';
 import { readNet } from './model.js';
+import { markingsToCsv, toDot } from './report.js';
 
 /**
  * @param data   { places: [{ id, name, marking }], transitions: [{ id, name }],
@@ -50,5 +52,49 @@ export function analyseData(data, limits = {}) {
     classes,
     workflow,
     findings,
+  };
+}
+
+/**
+ * The state space of a net as a file: what the state space view saves, for a host with data and no
+ * canvas. Works like analyseData: `milliseconds: null` means no time limit, a net that cannot be read
+ * gives `problem`, and the answer survives JSON.
+ *
+ * @param data   as for analyseData
+ * @param limits as for analyseData
+ * @param format 'dot' (Graphviz) or 'csv' (one row per marking)
+ * @returns {{
+ *   problem: string | null,
+ *   complete: boolean,        the search finished (a place that grows without bound is shown as omega)
+ *   stopped: 'markings' | 'time' | null,
+ *   markings: number, edges: number, deadlocks: number,
+ *   unbounded: string[],      ids of places shown as omega
+ *   text: string,             the file; empty where the net could not be read
+ * }}
+ */
+export function exploreData(data, limits = {}, format = 'dot') {
+  if (format !== 'dot' && format !== 'csv') throw new Error(`the format is dot or csv, not '${format}'`);
+
+  const used = { ...limits };
+  if (used.milliseconds === null) used.milliseconds = Infinity;
+  if (used.markings === null) delete used.markings;
+
+  let net;
+  try {
+    net = readNet(data);
+  } catch (error) {
+    return { problem: error.message, complete: false, stopped: null, markings: 0, edges: 0, deadlocks: 0, unbounded: [], text: '' };
+  }
+
+  const result = explore(net, used);
+  return {
+    problem: null,
+    complete: result.complete,
+    stopped: result.stopped,
+    markings: result.markings.length,
+    edges: result.edges.length,
+    deadlocks: result.deadlocks.length,
+    unbounded: [...result.unbounded],
+    text: format === 'dot' ? toDot(result, net) : markingsToCsv(result, net),
   };
 }

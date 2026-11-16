@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.0
+
+- **`exploreData(data, limits, format)`** in `net.js`: the state space of a net as
+  plain data as DOT or CSV, the same text the state space view saves. It works like
+  `analyseData` (`milliseconds: null` is no time limit, an unreadable net gives
+  `problem`, the answer survives JSON). `net.js` also exports `explore`, `toDot` and
+  `markingsToCsv`.
+
 ## 0.7.0
 
 - **Set as initial marking.** A button in the simulation bar, `simulation.setAsInitial()`
