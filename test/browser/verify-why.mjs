@@ -94,7 +94,7 @@ const check = (condition, message) => { if (!condition) problems.push(message); 
 check(result.hasMarkingRows >= 2, `only ${result.hasMarkingRows} findings say that a transition is not live`);
 check(result.workWhy && result.workWhy.text === '▶ Why', `Work offers ${JSON.stringify(result.workWhy)}`);
 check(/2 firings into a marking from which Work can never fire again/.test(result.workWhy?.title ?? ''), `the title reads '${result.workWhy?.title}'`);
-check(result.workWhy?.label === result.workWhy?.title, 'the button has no accessible name');
+check(result.workWhy?.label === 'Why', `the button is named '${result.workWhy?.label}', not by its visible words`);
 check(result.spinPresent === false || result.spinHasWhy === false, 'a transition that can always fire again is offered a Why');
 check(result.loaded.active === true && result.loaded.undone === 2, `the way was loaded as ${JSON.stringify(result.loaded)}`);
 check(/2 firings lead into a marking from which Work can never fire again/.test(result.note), `the note reads '${result.note}'`);

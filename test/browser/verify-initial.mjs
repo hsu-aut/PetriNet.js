@@ -106,9 +106,10 @@ const nodes = await ev(() => document.querySelectorAll('.ptn-states-node').lengt
 check(nodes > 1, 'the state space has no nodes to take a marking from');
 await ev(() => { [...document.querySelectorAll('.ptn-states-node')].at(-1).dispatchEvent(new MouseEvent('click', { bubbles: true })); });
 await page.waitForTimeout(100);
-check(/Set as initial marking/.test(await ev(() => document.querySelector('.ptn-states-note')?.textContent ?? '')) || await adopt.isVisible(),
+check(/Set as initial marking/.test(await ev(() => document.querySelector('.ptn-states-note')?.textContent ?? '')),
   'a click on a node neither says where the button is nor shows it');
 const stateBefore = await steps();
+check(await adopt.isEnabled(), 'the button is not enabled for a marking that differs from the document');
 if (await adopt.isEnabled()) {
   await adopt.click();
   await page.waitForTimeout(100);
@@ -123,9 +124,9 @@ const refused = await ev((id) => {
   for (const bad of [{ nowhere: 1 }, { [id]: -1 }, { [id]: 1.5 }, { [id]: Infinity }]) {
     try { modeling.setInitialMarking(bad); } catch (error) { errors.push(error.message); }
   }
-  return { errors: errors.length, unchanged: window.ptn.get('commandStack')._stackIdx === steps, none: modeling.setInitialMarking({}) };
+  return { errors: errors.length, unchanged: window.ptn.get('commandStack')._stackIdx === steps, none: modeling.setInitialMarking(Object.fromEntries(window.ptn.get('elementRegistry').filter((e) => e.type === 'ptn:Place').map((e) => [e.id, Number(e.businessObject.initialMarking ?? 0)]))) };
 }, ids.idle);
-check(refused.errors === 4 && refused.unchanged, `an invalid marking was not refused before writing: ${JSON.stringify(refused)}`);
+check(refused.errors === 4 && refused.unchanged && refused.none === 0, `an invalid marking was not refused before writing: ${JSON.stringify(refused)}`);
 
 // ── narrow: the button does not cover the side row ─────────────────────────
 await page.setViewportSize({ width: 600, height: 700 });
@@ -135,9 +136,9 @@ await page.waitForTimeout(100);
 const overlap = await ev(() => {
   const a = document.querySelector('.ptn-simulation-adopt').getBoundingClientRect();
   const row = document.querySelector('.ptn-side-row').getBoundingClientRect();
-  return a.right > row.left && a.bottom > row.top && a.top < row.bottom;
+  return { a: [a.left, a.right, a.top, a.bottom], row: [row.left, row.right, row.top, row.bottom], hit: a.right > row.left && a.bottom > row.top && a.top < row.bottom };
 });
-check(!overlap, 'at 600 px the button covers the buttons on the right');
+check(!overlap.hit, 'at 600 px the button covers the buttons on the right ' + JSON.stringify(overlap));
 
 await browser.close();
 server.close();

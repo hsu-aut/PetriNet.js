@@ -242,7 +242,7 @@ function slowSearch() {
     calls,
     cancelled: [],
     run(kind, net, limits) {
-      return new Promise((resolve) => calls.push({ kind, net, limits, resolve }));
+      return new Promise((resolve, reject) => calls.push({ kind, net, limits, resolve, reject }));
     },
     cancel(kind) {
       // As the real service does: a search that is stopped resolves to null.
@@ -461,7 +461,7 @@ test('stopping a further search brings back the earlier answer', async () => {
   await first;
 
   const further = findings.searchFurther();
-  assert.deepEqual(findings.all, [], 'the earlier list stays while the search runs');
+  assert.deepEqual(findings.all, [], 'the list is empty while the search runs');
   findings.cancel();
 
   assert.equal(await further, null);
@@ -498,4 +498,34 @@ test('an analysis asked for again with nothing said joins a further search that 
   assert.equal(search.calls.length, 2, 'a second search was started');
   search.calls[1].resolve(stoppedAnswer());
   await further;
+});
+
+test('a further search that fails brings back the earlier answer', async () => {
+  const { findings, search, last } = furtherFixture();
+  const first = findings.analyse({ markings: 50 });
+  search.calls[0].resolve(stoppedAnswer('PT97'));
+  await first;
+
+  const further = findings.searchFurther();
+  search.calls[1].reject(new Error('out of memory'));
+  await further;
+
+  assert.deepEqual(findings.all.map((finding) => finding.rule), ['PT97']);
+  assert.equal(last().furtherStopped, true);
+  assert.equal(findings.further, false);
+});
+
+test('an edit after a stopped further search leaves no note about it', async () => {
+  const { findings, search, last, edit } = furtherFixture();
+  const first = findings.analyse({ markings: 50 });
+  search.calls[0].resolve(stoppedAnswer('PT97'));
+  await first;
+  const further = findings.searchFurther();
+  findings.cancel();
+  await further;
+  assert.equal(last().furtherStopped, true);
+
+  edit();
+  assert.equal(last().furtherStopped, false);
+  assert.equal(findings.further, false);
 });

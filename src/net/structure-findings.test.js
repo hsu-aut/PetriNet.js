@@ -160,7 +160,7 @@ test('a workflow net drawn at its start is not told that every transition is not
   // Drawn with no token the net is still a workflow net, but it is not drawn at its start,
   // so it is told what the search finds.
   const undrawn = run(build({ i: 0, m: 0, o: 0 }, ['a', 'b'], [['i', 'a'], ['a', 'm'], ['m', 'b'], ['b', 'o']]));
-  assert.ok(rule(undrawn, 'PT14').length > 0 || rule(undrawn, 'PT16').length >= 0);
+  assert.ok(rule(undrawn, 'PT14').length > 0 || rule(undrawn, 'PT16').length > 0);
 });
 
 test('a transition that is not live carries the marking from which it can never fire again', () => {
@@ -176,10 +176,11 @@ test('a dead transition says which place never holds enough tokens, and the plac
   assert.deepEqual(dead.cover, [['mid', 1]]);
 
   // Where every input reaches its weight alone, the sentence says they never do together.
-  const together = build({ a: 1, b: 1, o: 0 }, ['t', 'u', 'v'],
-    [['a', 'u'], ['u', 'o'], ['b', 'v'], ['v', 'o'], ['a', 't'], ['b', 't'], ['t', 'o']]);
-  const found = rule(run(together, { milliseconds: Infinity }), 'PT14');
-  assert.ok(found.length === 0 || found.every((finding) => finding.cover?.length > 0 || !/never hold enough/.test(finding.message)));
+  const together = build({ a: 1, b: 0, o: 0 }, ['t', 'u'], [['a', 'u'], ['u', 'b'], ['a', 't'], ['b', 't'], ['t', 'o']]);
+  const [both] = rule(run(together, { milliseconds: Infinity }), 'PT14');
+  assert.ok(both, 'a transition whose inputs are never full together is not reported');
+  assert.match(both.message, /never hold enough tokens at the same time/);
+  assert.deepEqual(both.cover.map(([id]) => id).sort(), ['a', 'b']);
 });
 
 test('a dead transition on a search that stopped is no claim and has no cover', () => {

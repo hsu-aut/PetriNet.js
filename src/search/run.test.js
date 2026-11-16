@@ -155,5 +155,6 @@ test('a further search has ten times the limits, and what is none stays none', a
   assert.deepEqual(furtherLimits({}), { markings: 200000, milliseconds: 20000 });
   assert.deepEqual(furtherLimits({ markings: 500, milliseconds: 100 }), { markings: 5000, milliseconds: 1000 });
   assert.equal(furtherLimits({ milliseconds: null }).milliseconds, null);
+  assert.equal(furtherLimits({ markings: null }).markings, 200000, 'no markings given means the default, which is multiplied');
   assert.deepEqual(furtherLimits({ structure: { places: 40 } }).structure, { places: 40 });
 });

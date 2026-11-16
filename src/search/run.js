@@ -21,11 +21,11 @@ import { toWire } from './wire.js';
  * limits of the structural part are not multiplied.
  */
 export function furtherLimits(limits = {}) {
-  const times = (value, fallback) => (value === null ? null : (value ?? fallback) * 10);
+  // No time limit stays none. For the markings, null means the default and is multiplied.
   return {
     ...limits,
-    markings: times(limits.markings, SEARCH_LIMITS.markings),
-    milliseconds: times(limits.milliseconds, SEARCH_LIMITS.milliseconds),
+    markings: (limits.markings ?? SEARCH_LIMITS.markings) * 10,
+    milliseconds: limits.milliseconds === null ? null : (limits.milliseconds ?? SEARCH_LIMITS.milliseconds) * 10,
   };
 }
 

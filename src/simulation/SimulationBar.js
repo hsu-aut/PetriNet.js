@@ -64,6 +64,7 @@ export default class SimulationBar {
 
     this._status = document.createElement('span');
     this._status.className = 'ptn-simulation-status';
+    this._status.setAttribute('role', 'status');
     this._container.appendChild(this._status);
 
     eventBus.on('canvas.init', () => {

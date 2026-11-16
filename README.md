@@ -212,7 +212,7 @@ on the net the initial marking of the document. The run ends, with the reason
 shown, and one Ctrl+Z gives the old marking back. From code:
 `simulation.setAsInitial()` (check `simulation.canSetAsInitial`) and
 `modeling.setInitialMarking({ placeId: tokens })`, one step of undo for any number
-of places. A node of the state space view can be taken the same way.
+of places. The marking is complete: a place that is not named gets 0 tokens. A node of the state space view can be taken the same way.
 
 ### Searching further
 
@@ -220,8 +220,7 @@ A search that hit its limits says so, and the finding PT17 offers "Search furthe
 It repeats the search once with ten times the limits, for the list and for the
 state space view (`findings.searchFurther()`, `reachabilityView.searchFurther()`;
 `canSearchFurther` tells whether it is offered). Stop returns to the earlier
-answer. The proofs from the structure (PT22 to PT25) hold at any size and are not
-repeated.
+answer. The proofs from the structure (PT22 to PT25) hold at any size.
 
 ### Why
 

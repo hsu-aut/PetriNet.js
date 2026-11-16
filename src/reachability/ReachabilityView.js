@@ -95,6 +95,7 @@ export default class ReachabilityView {
     this._furtherButton.type = 'button';
     this._furtherButton.className = 'ptn-states-further';
     this._furtherButton.textContent = 'Search further';
+    this._furtherButton.title = 'Search again with ten times the limits, once. The canvas stays usable.';
     this._furtherButton.hidden = true;
     this._furtherButton.addEventListener('click', () => this.searchFurther());
     head.appendChild(this._furtherButton);
@@ -127,7 +128,13 @@ export default class ReachabilityView {
     });
 
     // A changed net makes the graph wrong, and a wrong graph is worse than none.
-    eventBus.on(['commandStack.changed', 'import.done'], () => this.close());
+    eventBus.on(['commandStack.changed', 'import.done'], () => {
+      // An edit drops everything, also the answer that a stopped further search would bring back.
+      this._previousView = null;
+      this.close();
+      this._result = null;
+      this._net = null;
+    });
 
     eventBus.on('search.progress', (event) => {
       if (this._pending && event.kind === 'explore') {
@@ -199,6 +206,8 @@ export default class ReachabilityView {
     // not: it is stopped and the question is asked again.
     const limitsKey = JSON.stringify(limits, (name, value) => (value === Infinity ? 'Infinity' : value));
     if (this._pending && this._pendingKey === limitsKey) return this._pending;
+    // A question with no limits of its own joins the search that is running.
+    if (this._pending && !further && JSON.stringify(limits) === '{}') return this._pending;
     if (this._pending) this.cancel();
 
     // What is on screen is kept while a further search runs.
@@ -327,7 +336,7 @@ export default class ReachabilityView {
    */
   async ask(question) {
     // The question is answered when the search has finished, not before.
-    if (!this._result) await this.show();
+    if (!this._result) await (this._pending ?? this.show());
     if (!this._result) return this._note('The net could not be read, or the search was stopped, so nothing can be asked about it.');
 
     const { wanted, problem } = parseQuery(question, this._net);

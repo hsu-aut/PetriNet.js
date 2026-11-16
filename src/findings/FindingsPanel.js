@@ -273,7 +273,8 @@ export default class FindingsPanel {
     const actions = [];
 
     const way = this._simulation ? this._findings.wayTo(finding) : null;
-    if (way) {
+    // Nothing to load where the net already is in that marking at the start.
+    if (way && way.transitions.length > 0) {
       // A deadlock is a marking the reader is shown the way to. "Not live" and "not sound" are
       // asked about: why can this never happen again, why does the net not end well.
       const why = finding.rule === 'PT16' || finding.rule === 'PT25';
@@ -333,18 +334,22 @@ export default class FindingsPanel {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'ptn-finding-action';
-      // The symbol is for the eye; the name of the button is its title.
+      // The symbol is for the eye. The name is the words on the button (a speech-input user says
+      // "click Why"); the title says more.
       const [symbol, ...words] = action.text.split(' ');
       const mark = document.createElement('span');
       mark.setAttribute('aria-hidden', 'true');
       mark.textContent = symbol;
       button.append(mark, ` ${words.join(' ')}`);
       button.title = action.title;
-      button.setAttribute('aria-label', action.title);
+      button.setAttribute('aria-label', words.join(' '));
       button.addEventListener('click', (event) => {
         // The row below selects an element; a button is not that click.
         event.stopPropagation();
         action.run();
+        // The list is drawn again by what the action starts; focus goes on to the Stop button
+        // rather than to nowhere.
+        if (!button.isConnected) this._list.querySelector('.ptn-findings-stop')?.focus();
       });
       box.appendChild(button);
     }

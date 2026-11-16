@@ -73,6 +73,8 @@ export default class Findings {
         this._dropOwn();
         this._stale = true;
       }
+      this._furtherStopped = false;
+      this._further = false;
       this._changed();
     });
 
@@ -220,7 +222,7 @@ export default class Findings {
     } catch (error) {
       if (run !== this._run) return null;
       this._busy = false;
-      this._problem = error.message;
+      if (!this._restorePrevious()) this._problem = error.message;
       this._changed();
       return [];
     }
@@ -232,7 +234,7 @@ export default class Findings {
     if (answer === null) {
       this._busy = false;
       this._progress = null;
-      this._stopped = true;
+      if (!this._restorePrevious()) this._stopped = true;
       this._changed();
       return null;
     }
@@ -252,19 +254,21 @@ export default class Findings {
     if (!this._busy) return;
     this._end();
     this._search?.cancel('analyse');
-    if (this._previous) {
-      // A further search that is stopped brings back the answer it started from.
-      this._own = this._previous.own;
-      this._answer = this._previous.answer;
-      this._net = this._previous.net;
-      this._previous = null;
-      this._further = false;
-      this._furtherStopped = true;
-      this._stopped = false;
-    } else {
-      this._stopped = true;
-    }
+    if (!this._restorePrevious()) this._stopped = true;
     this._changed();
+  }
+
+  /** A further search that ends without an answer brings back the answer it started from. */
+  _restorePrevious() {
+    if (!this._previous) return false;
+    this._own = this._previous.own;
+    this._answer = this._previous.answer;
+    this._net = this._previous.net;
+    this._previous = null;
+    this._further = false;
+    this._furtherStopped = true;
+    this._stopped = false;
+    return true;
   }
 
   /** What a running analysis is no longer wanted for: its answer, when it comes, is dropped. */

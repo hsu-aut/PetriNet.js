@@ -229,7 +229,7 @@ await build(further.page, 6); // 64 markings
 const cutOff = await further.page.evaluate(async () => {
   window.ptn.get('findingsPanel').open();
   await window.ptn.get('findings').analyse({ markings: 10 });
-  const actions = () => [...document.querySelectorAll('.ptn-finding-action')].map((button) => button.getAttribute('aria-label'));
+  const actions = () => [...document.querySelectorAll('.ptn-finding-action')].map((button) => button.title);
   const before = {
     rows: [...document.querySelectorAll('.ptn-finding')].map((row) => row.querySelector('.ptn-finding-rule')?.textContent),
     offered: actions().filter((label) => /ten times the limits/.test(label ?? '')),
