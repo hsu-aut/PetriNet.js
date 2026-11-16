@@ -14,6 +14,7 @@
  */
 import { initialMarking, markingKey, readKey } from './model.js';
 import { bounds, explore, OMEGA } from './explore.js';
+import { noReturn } from './paths.js';
 import { placeInvariants, transitionInvariants } from './invariants.js';
 import { DEFAULT_LIMITS as STRUCTURE_LIMITS, holdsToken, maximalTrap, siphons, traps } from './structure.js';
 import { classNames, netClasses, workflowShape } from './classes.js';
@@ -130,8 +131,10 @@ export function analyse(net, limits = {}) {
   for (const transition of net.transitions) {
     if (result.fired.includes(transition.id)) continue;
     if (whole) {
+      const why = starved(net, transition.id, largest, name);
       add('PT14', 'warning', transition.id,
-        `${name.get(transition.id)} can never fire: no reachable marking enables it.`);
+        `${name.get(transition.id)} can never fire: no reachable marking enables it.${why.sentence}`,
+        why.cover.length > 0 ? { cover: why.cover.map((id) => [id, 1]) } : {});
     } else {
       // Without the whole state space this is not "never", and a warning that
       // may be wrong is worse than an observation that is right.
@@ -170,8 +173,12 @@ export function analyse(net, limits = {}) {
   if (whole && !atStart) {
     for (const transition of notLive(net, result)) {
       if (result.fired.includes(transition)) {
+        // The nearest marking from which it can never fire again, so that a reader can be
+        // shown the way there.
+        const stuck = noReturn(result, transition);
         add('PT16', 'information', transition,
-          `${name.get(transition)} is not live: from some reachable marking it can never fire again.`);
+          `${name.get(transition)} is not live: from some reachable marking it can never fire again.`,
+          stuck === null ? {} : { marking: stuck });
       }
     }
   }
@@ -256,6 +263,29 @@ export function analyse(net, limits = {}) {
     classes: classList,
     workflow: workflow ? { start: workflow.start, end: workflow.end, sound: verdict ? verdict.sound : null } : null,
   };
+}
+
+/**
+ * Why a transition that never fires cannot: the input place that never holds as many tokens
+ * as the arc takes, or, where every input reaches its weight alone, the inputs that never hold
+ * enough at the same time. Only for a whole search, where the bounds are the bounds.
+ */
+function starved(net, transitionId, largest, name) {
+  const needs = new Map();
+  for (const arc of net.arcs) {
+    if (arc.target === transitionId) needs.set(arc.source, (needs.get(arc.source) ?? 0) + arc.weight);
+  }
+  if (needs.size === 0) return { sentence: '', cover: [] };
+
+  const short = [...needs].filter(([place, weight]) => (largest.get(place) ?? 0) < weight);
+  if (short.length > 0) {
+    const first = short[0];
+    return {
+      sentence: ` ${name.get(first[0]) ?? first[0]} never holds the ${tokens(first[1])} it needs.`,
+      cover: short.map(([place]) => place),
+    };
+  }
+  return { sentence: ' Its input places never hold enough tokens at the same time.', cover: [...needs.keys()] };
 }
 
 const tokens = (count) => (count === 1 ? 'one token' : `${count} tokens`);

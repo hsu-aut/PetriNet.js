@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { conflict, deadlock, loop, producer, qualityCheck } from './fixtures.js';
+import { conflict, deadlock, loop, producer, qualityCheck, resourceDeadlock } from './fixtures.js';
 import { explore } from './explore.js';
-import { markingKey, readNet } from './model.js';
-import { matching, parseQuery, pathTo, pathToDeadlock, wayTo } from './paths.js';
+import { markingKey, readKey, readNet } from './model.js';
+import { matching, noReturn, parseQuery, pathTo, pathToDeadlock, wayTo } from './paths.js';
 
 test('the way to the initial marking is no firing at all', () => {
   const net = readNet(loop);
@@ -130,4 +130,77 @@ test('a marking only an omega node holds is reported as a family, not as one', (
 
   const way = wayTo(result, wanted);
   assert.equal(way.abstract, true);
+});
+
+// ── the nearest point of no return ──────────────────────────────────────────
+
+import { notLive } from './analyse.js';
+import { build } from './builders.js';
+
+const whole = (data) => {
+  const net = readNet(data);
+  return { net, result: explore(net, { milliseconds: Infinity }) };
+};
+
+test('a transition that can always fire again has no point of no return', () => {
+  const { net, result } = whole(loop);
+  for (const transition of net.transitions) assert.equal(noReturn(result, transition.id), null, transition.id);
+});
+
+test('the point of no return is outside every marking that can still fire it, and the way there stays inside', () => {
+  for (const data of [qualityCheck, resourceDeadlock]) {
+    const { net, result } = whole(data);
+    for (const transition of notLive(net, result)) {
+      if (!result.fired.includes(transition)) continue;
+      const stuck = noReturn(result, transition);
+      assert.ok(stuck, `${transition} is not live but has no point of no return`);
+
+      // From there it can never fire: a fresh search of a copy started in that marking never fires it.
+      const marking = new Map(readKey(stuck));
+      const copy = { ...net, places: net.places.map((place) => ({ ...place, marking: marking.get(place.id) ?? 0 })) };
+      assert.ok(!explore(copy, { milliseconds: Infinity }).fired.includes(transition), `${transition} fires after all`);
+
+      // Every marking before it on the way can still fire it: this is the first such marking.
+      const way = pathTo(result, stuck);
+      for (const earlier of way.markings.slice(0, -1)) {
+        const from = new Map(readKey(earlier));
+        const start = { ...net, places: net.places.map((place) => ({ ...place, marking: from.get(place.id) ?? 0 })) };
+        assert.ok(explore(start, { milliseconds: Infinity }).fired.includes(transition), `${transition} cannot fire from an earlier marking`);
+      }
+    }
+  }
+});
+
+test('noReturn finds exactly the transitions that are not live, on generated nets', () => {
+  let state = 424242;
+  const next = () => { state = (Math.imul(state, 1664525) + 1013904223) >>> 0; return state / 2 ** 32; };
+  const int = (low, high) => low + Math.floor(next() * (high - low + 1));
+  let checked = 0;
+  let stuckSeen = 0;
+
+  for (let n = 0; n < 1500; n += 1) {
+    const places = {};
+    for (let i = 0; i < int(2, 4); i += 1) places[`p${i}`] = int(0, 2);
+    const transitions = Array.from({ length: int(1, 4) }, (_, i) => `t${i}`);
+    const arcs = [];
+    for (const p of Object.keys(places)) for (const t of transitions) {
+      if (next() < 0.35) arcs.push([p, t]);
+      if (next() < 0.35) arcs.push([t, p]);
+    }
+    const net = readNet(build(places, transitions, arcs));
+    const result = explore(net, { markings: 2000, milliseconds: Infinity });
+    if (!result.complete || result.unbounded.length > 0) continue;
+
+    const dead = new Set(notLive(net, result));
+    for (const transition of net.transitions) {
+      if (!result.fired.includes(transition.id)) continue;
+      checked += 1;
+      const stuck = noReturn(result, transition.id);
+      assert.equal(stuck !== null, dead.has(transition.id), `${transition.id}: ${JSON.stringify(net)}`);
+      if (stuck !== null) stuckSeen += 1;
+    }
+  }
+
+  assert.ok(checked >= 300, `only ${checked} transitions were checked`);
+  assert.ok(stuckSeen >= 50, `only ${stuckSeen} of them had a point of no return`);
 });

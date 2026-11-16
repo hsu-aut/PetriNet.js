@@ -90,6 +90,47 @@ function walkBack(cameFrom, initial, key) {
   return { transitions, markings };
 }
 
+const reversedOf = new WeakMap();
+
+/**
+ * The first marking, in the order the search found them, from which `transition` can never
+ * fire again: the nearest point of no return on the way to "not live".
+ *
+ * It is found by walking the recorded edges backwards from every marking in which the
+ * transition fires; whatever that walk does not reach cannot fire it any more. The initial
+ * marking is never the answer for a transition that fired at all.
+ *
+ * Only meaningful on a whole search: on a search that stopped, a marking whose successors
+ * were never expanded would count as a point of no return.
+ *
+ * @returns {string | null} the key of the marking, or null where it can always fire again
+ */
+export function noReturn(result, transition) {
+  let before = reversedOf.get(result);
+  if (!before) {
+    before = new Map();
+    for (const edge of result.edges) {
+      if (!before.has(edge.to)) before.set(edge.to, []);
+      before.get(edge.to).push(edge.from);
+    }
+    reversedOf.set(result, before);
+  }
+
+  const canFire = new Set(result.edges.filter((edge) => edge.transition === transition).map((edge) => edge.from));
+  const queue = [...canFire];
+  for (let at = 0; at < queue.length; at += 1) {
+    for (const from of before.get(queue[at]) ?? []) {
+      if (!canFire.has(from)) {
+        canFire.add(from);
+        queue.push(from);
+      }
+    }
+  }
+
+  const stuck = result.markings.find(({ key }) => !canFire.has(key));
+  return stuck ? stuck.key : null;
+}
+
 /**
  * The shortest way into a marking in which nothing is enabled.
  *

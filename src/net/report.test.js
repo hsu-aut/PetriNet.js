@@ -69,7 +69,7 @@ test('a findings table holds the rule, the severity, the element and the sentenc
   // Every message ends in a full stop, so every field holding one is quoted
   // only where it has a comma in it; one such row is checked by hand.
   const dead = rows.find((row) => row.startsWith('PT14'));
-  assert.equal(dead, 'PT14,warning,pair,Pair can never fire: no reachable marking enables it.');
+  assert.equal(dead, 'PT14,warning,pair,Pair can never fire: no reachable marking enables it. Mid never holds the 2 tokens it needs.');
 });
 
 test('a field with a comma or a quote in it is quoted the way a spreadsheet reads it', () => {
