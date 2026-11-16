@@ -244,7 +244,11 @@ function slowSearch() {
     run(kind, net, limits) {
       return new Promise((resolve) => calls.push({ kind, net, limits, resolve }));
     },
-    cancel(kind) { this.cancelled.push(kind); },
+    cancel(kind) {
+      // As the real service does: a search that is stopped resolves to null.
+      this.cancelled.push(kind);
+      for (const call of this.calls) call.resolve(null);
+    },
   };
 }
 
@@ -386,4 +390,112 @@ test('the way into a marking is only offered for a finding that is in the list n
   assert.ok(findings.wayTo(deadlock));
   edit();
   assert.equal(findings.wayTo(deadlock), null, 'a way into a marking of a net that has changed');
+});
+
+// ── searching further ───────────────────────────────────────────────────────
+
+const stoppedAnswer = (rule = 'PT99') => ({
+  complete: false, stopped: 'markings', markings: 5, unbounded: [], classes: [], workflow: null,
+  findings: [{ rule, severity: 'information', message: 'Partial.' }],
+});
+
+function furtherFixture() {
+  const search = slowSearch();
+  search.mode = 'worker';
+  return { search, ...fixture(stuck(), search) };
+}
+
+test('a further search is offered after a search that stopped at its limit, and only then', async () => {
+  const { findings, search } = furtherFixture();
+  assert.equal(findings.canSearchFurther, false, 'before any analysis');
+
+  const first = findings.analyse({ markings: 50, milliseconds: 100 });
+  assert.equal(findings.canSearchFurther, false, 'while it runs');
+  search.calls[0].resolve(stoppedAnswer());
+  await first;
+  assert.equal(findings.canSearchFurther, true);
+  assert.deepEqual(findings.furtherPreview, { markings: 500, seconds: 1 });
+
+  // A search that finished says nothing about a further one.
+  const second = findings.analyse();
+  search.calls[1].resolve({ ...stoppedAnswer(), complete: true, stopped: null });
+  await second;
+  assert.equal(findings.canSearchFurther, false);
+});
+
+test('without a worker there is no further search', async () => {
+  const search = slowSearch();
+  search.mode = 'inline';
+  const { findings } = fixture(stuck(), search);
+  const running = findings.analyse();
+  search.calls[0].resolve(stoppedAnswer());
+  await running;
+  assert.equal(findings.canSearchFurther, false);
+  assert.equal(await findings.searchFurther(), null);
+});
+
+test('a further search runs with ten times the limits, once, and says when that was not enough', async () => {
+  const { findings, search, last } = furtherFixture();
+  const first = findings.analyse({ markings: 50, milliseconds: 100 });
+  search.calls[0].resolve(stoppedAnswer());
+  await first;
+
+  const further = findings.searchFurther();
+  assert.equal(search.calls.length, 2);
+  assert.deepEqual(search.calls[1].limits, { markings: 500, milliseconds: 1000 });
+  assert.equal(findings.further, true);
+  assert.deepEqual(findings.progress.limit, 500);
+
+  search.calls[1].resolve(stoppedAnswer('PT98'));
+  await further;
+  assert.equal(findings.canSearchFurther, false, 'a second further search was offered');
+  assert.equal(last().further, true);
+  assert.equal(last().cutOff, 'markings');
+  assert.deepEqual(findings.all.map((finding) => finding.rule), ['PT98']);
+});
+
+test('stopping a further search brings back the earlier answer', async () => {
+  const { findings, search, last } = furtherFixture();
+  const first = findings.analyse({ markings: 50 });
+  search.calls[0].resolve(stoppedAnswer('PT97'));
+  await first;
+
+  const further = findings.searchFurther();
+  assert.deepEqual(findings.all, [], 'the earlier list stays while the search runs');
+  findings.cancel();
+
+  assert.equal(await further, null);
+  assert.deepEqual(findings.all.map((finding) => finding.rule), ['PT97']);
+  assert.equal(last().furtherStopped, true);
+  assert.equal(last().stopped, false);
+  assert.equal(findings.canSearchFurther, true, 'the earlier answer was cut off and may be searched further again');
+});
+
+test('an edit during a further search drops everything', async () => {
+  const { findings, search, edit, last } = furtherFixture();
+  const first = findings.analyse({ markings: 50 });
+  search.calls[0].resolve(stoppedAnswer());
+  await first;
+
+  const further = findings.searchFurther();
+  edit();
+  search.calls[1].resolve(null);
+  assert.equal(await further, null);
+  assert.deepEqual(findings.all, []);
+  assert.equal(last().stale, true);
+  assert.equal(findings.further, false);
+});
+
+test('an analysis asked for again with nothing said joins a further search that is running', async () => {
+  const { findings, search } = furtherFixture();
+  const first = findings.analyse({ markings: 50 });
+  search.calls[0].resolve(stoppedAnswer());
+  await first;
+
+  const further = findings.searchFurther();
+  const joined = findings.analyse();
+  assert.equal(joined, further, 'the menu threw the long search away');
+  assert.equal(search.calls.length, 2, 'a second search was started');
+  search.calls[1].resolve(stoppedAnswer());
+  await further;
 });

@@ -18,7 +18,8 @@ import { explore, OMEGA } from '../net/explore.js';
 import { netFromElements } from '../net/fromDiagram.js';
 import { readNet } from '../net/model.js';
 import { parseQuery, pathTo, wayTo } from '../net/paths.js';
-import { runSearch } from '../search/run.js';
+import { SEARCH_LIMITS } from '../net/explore.js';
+import { furtherLimits, runSearch } from '../search/run.js';
 import { fromWire } from '../search/wire.js';
 import { markingsToCsv, toDot } from '../net/report.js';
 import { nameFor, offerFile } from '../ui/download.js';
@@ -50,6 +51,9 @@ export default class ReachabilityView {
     this._search = injector.get('netSearch', false);
     this._pending = null;
     this._pendingKey = null;
+    this._lastLimits = {};
+    this._further = false;
+    this._previousView = null;
     this._runId = 0;
     this._result = null;
     this._net = null;
@@ -85,6 +89,15 @@ export default class ReachabilityView {
     this._stop.hidden = true;
     this._stop.addEventListener('click', () => this.cancel());
     head.appendChild(this._stop);
+
+    // After a search that stopped at its limit: ten times the limits, once.
+    this._furtherButton = document.createElement('button');
+    this._furtherButton.type = 'button';
+    this._furtherButton.className = 'ptn-states-further';
+    this._furtherButton.textContent = 'Search further';
+    this._furtherButton.hidden = true;
+    this._furtherButton.addEventListener('click', () => this.searchFurther());
+    head.appendChild(this._furtherButton);
 
     const close = document.createElement('button');
     close.type = 'button';
@@ -162,11 +175,36 @@ export default class ReachabilityView {
    *   where the search was stopped or the net changed while it ran.
    */
   show(limits = {}) {
+    this._lastLimits = limits;
+    return this._show(limits, false);
+  }
+
+  /** Whether the last search stopped at a limit and a further one, with ten times the limits, is on offer. */
+  get canSearchFurther() {
+    return !this._pending && !this._further && this._search?.mode === 'worker' && Boolean(this._result)
+      && (this._result.stopped === 'markings' || this._result.stopped === 'time');
+  }
+
+  /**
+   * Searches again with ten times the limits, once, and only where there is a worker. Stopped, it
+   * brings back what was on screen.
+   */
+  searchFurther() {
+    if (!this.canSearchFurther) return Promise.resolve(null);
+    return this._show(furtherLimits(this._lastLimits), true);
+  }
+
+  _show(limits, further) {
     // A search that is already running with these limits is the answer. With others it is
     // not: it is stopped and the question is asked again.
     const limitsKey = JSON.stringify(limits, (name, value) => (value === Infinity ? 'Infinity' : value));
     if (this._pending && this._pendingKey === limitsKey) return this._pending;
     if (this._pending) this.cancel();
+
+    // What is on screen is kept while a further search runs.
+    this._previousView = further ? { result: this._result, net: this._net } : null;
+    this._further = further;
+    this._furtherButton.hidden = true;
 
     let net;
     try {
@@ -223,6 +261,7 @@ export default class ReachabilityView {
         this._failed(error);
         return null;
       }
+      this._furtherButton.hidden = !this.canSearchFurther;
       return this.state;
     })();
 
@@ -243,8 +282,28 @@ export default class ReachabilityView {
     this._pendingKey = null;
     this._stop.hidden = true;
     this._search?.cancel('explore');
+
+    if (this._previousView?.result) {
+      // A further search that is stopped brings back what was on screen before it.
+      this._result = this._previousView.result;
+      this._net = this._previousView.net;
+      this._previousView = null;
+      this._further = false;
+      this._present();
+      this._note('The further search was stopped; this is the earlier answer.');
+      return;
+    }
+
+    this._further = false;
     this._title.textContent = 'The search was stopped';
     this._picture.replaceChildren(text('The search was stopped. Press State space to search again.', 'ptn-states-note'));
+  }
+
+  /** Draws the result that is held, or says that it is too big to draw. */
+  _present() {
+    if (this._result.markings.length > MOST_NODES) this._tooBig();
+    else this._draw();
+    this._furtherButton.hidden = !this.canSearchFurther;
   }
 
   _failed(error) {

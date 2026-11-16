@@ -289,6 +289,14 @@
   white-space: nowrap;
 }
 
+.ptn-finding-action:focus-visible,
+.ptn-states-stop:focus-visible,
+.ptn-states-further:focus-visible,
+.ptn-findings-stop:focus-visible {
+  outline: 2px solid #1a73e8;
+  outline-offset: 1px;
+}
+
 .ptn-finding-action:hover {
   background: #eef1f6;
 }

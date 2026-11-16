@@ -9,11 +9,25 @@
  * answers what the state space view draws, in the compact form of wire.js.
  */
 import { analyse } from '../net/analyse.js';
-import { explore } from '../net/explore.js';
+import { explore, SEARCH_LIMITS } from '../net/explore.js';
 import { initialMarking } from '../net/model.js';
 import { sequenceFor } from '../net/invariants.js';
 import { pathTo } from '../net/paths.js';
 import { toWire } from './wire.js';
+
+/**
+ * Ten times the limits of the search that was cut off: for the reader who has seen "stopped
+ * at the limit" and wants to know more. `null` for a limit means none and stays none; the
+ * limits of the structural part are not multiplied.
+ */
+export function furtherLimits(limits = {}) {
+  const times = (value, fallback) => (value === null ? null : (value ?? fallback) * 10);
+  return {
+    ...limits,
+    markings: times(limits.markings, SEARCH_LIMITS.markings),
+    milliseconds: times(limits.milliseconds, SEARCH_LIMITS.milliseconds),
+  };
+}
 
 /** The limits that can travel: a clock or a callback cannot. */
 export function plainLimits(limits = {}) {

@@ -10,7 +10,8 @@
  */
 import { netFromElements } from '../net/fromDiagram.js';
 import { readNet } from '../net/model.js';
-import { runSearch } from '../search/run.js';
+import { SEARCH_LIMITS } from '../net/explore.js';
+import { furtherLimits, runSearch } from '../search/run.js';
 
 const ORDER = { error: 0, warning: 1, information: 2 };
 
@@ -28,6 +29,13 @@ export default class Findings {
     this._run = 0;
     this._limit = null;
     this._progress = null;
+    // The limits of the last analysis, the answer it replaced while a further search runs,
+    // and whether the answer on show came from a further search.
+    this._lastLimits = {};
+    this._previous = null;
+    this._further = false;
+    this._furtherStopped = false;
+    this._pending = null;
 
     this._own = [];
     this._fromHost = [];
@@ -53,6 +61,8 @@ export default class Findings {
       if (this._busy) {
         this._end();
         this._stale = true;
+        this._previous = null;
+        this._further = false;
         this._changed();
         return;
       }
@@ -130,7 +140,47 @@ export default class Findings {
    * @returns {Promise<object[] | null>} the computed findings, or null where the
    *   analysis was stopped, or the net changed while it ran.
    */
-  async analyse(limits = {}) {
+  analyse(limits) {
+    // Asked for again, with nothing said, while a further search runs: that is the answer.
+    // The menu of the plugin does not throw a long search away.
+    if (limits === undefined && this._busy && this._further && this._pending) return this._pending;
+    this._lastLimits = limits ?? {};
+    return this._analyse(limits ?? {}, false);
+  }
+
+  /**
+   * Analyses again with ten times the limits, after a search that stopped at its limit. Once:
+   * the answer of a further search offers no further one. Only where there is a worker; on the
+   * page it would freeze the canvas for twenty seconds.
+   *
+   * @returns {Promise<object[] | null>} as analyse(); null where there was nothing to do
+   */
+  searchFurther() {
+    if (!this.canSearchFurther) return Promise.resolve(null);
+    const promise = this._analyse(furtherLimits(this._lastLimits), true);
+    this._pending = promise;
+    promise.finally(() => { if (this._pending === promise) this._pending = null; });
+    return promise;
+  }
+
+  /** Whether the last analysis stopped at a limit and a further search is on offer. */
+  get canSearchFurther() {
+    return !this._busy && !this._further && this._search?.mode === 'worker'
+      && (this._answer?.stopped === 'markings' || this._answer?.stopped === 'time');
+  }
+
+  /** Whether the answer on show, or the search that is running, is a further one. */
+  get further() {
+    return this._further;
+  }
+
+  /** What a further search would look at, for the button that offers it: markings and seconds. */
+  get furtherPreview() {
+    const limits = furtherLimits(this._lastLimits);
+    return { markings: limits.markings, seconds: limits.milliseconds === null ? null : limits.milliseconds / 1000 };
+  }
+
+  async _analyse(limits, further) {
     let net;
     try {
       net = readNet(netFromElements(this._elementRegistry.getAll()));
@@ -144,6 +194,12 @@ export default class Findings {
       return [];
     }
 
+    // A further search keeps the answer it replaces, to bring it back if it is stopped.
+    if (further) this._previous = { own: this._own, answer: this._answer, net: this._net };
+    else this._previous = null;
+    this._further = further;
+    this._furtherStopped = false;
+
     // The previous list is about the net as it was a moment ago. It goes, and the
     // reader sees that something is being done.
     this._end();
@@ -153,7 +209,7 @@ export default class Findings {
     this._stopped = false;
     this._busy = true;
     this._progress = null;
-    this._limit = limits.markings ?? 20000;
+    this._limit = limits.markings ?? SEARCH_LIMITS.markings;
     this._changed();
 
     let answer;
@@ -195,8 +251,19 @@ export default class Findings {
   cancel() {
     if (!this._busy) return;
     this._end();
-    this._stopped = true;
     this._search?.cancel('analyse');
+    if (this._previous) {
+      // A further search that is stopped brings back the answer it started from.
+      this._own = this._previous.own;
+      this._answer = this._previous.answer;
+      this._net = this._previous.net;
+      this._previous = null;
+      this._further = false;
+      this._furtherStopped = true;
+      this._stopped = false;
+    } else {
+      this._stopped = true;
+    }
     this._changed();
   }
 
@@ -231,6 +298,9 @@ export default class Findings {
   clear() {
     this._search?.cancel('analyse');
     this._end();
+    this._previous = null;
+    this._further = false;
+    this._furtherStopped = false;
     this._stopped = false;
     this._dropOwn();
     this._fromHost = [];
@@ -293,6 +363,10 @@ export default class Findings {
       busy: this._busy,
       stopped: this._stopped,
       progress: this.progress,
+      further: this._further,
+      furtherStopped: this._furtherStopped,
+      canSearchFurther: this.canSearchFurther,
+      cutOff: this._answer?.stopped ?? null,
     });
   }
 }

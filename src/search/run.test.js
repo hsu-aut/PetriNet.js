@@ -149,3 +149,11 @@ test('the progress hook is called, ends with the final count and changes no resu
   assert.deepEqual(calls[calls.length - 1], { markings: watched.markings.length, edges: watched.edges.length });
   assert.ok(calls.every((state, i) => i === 0 || state.markings >= calls[i - 1].markings), 'progress went backwards');
 });
+
+test('a further search has ten times the limits, and what is none stays none', async () => {
+  const { furtherLimits } = await import('./run.js');
+  assert.deepEqual(furtherLimits({}), { markings: 200000, milliseconds: 20000 });
+  assert.deepEqual(furtherLimits({ markings: 500, milliseconds: 100 }), { markings: 5000, milliseconds: 1000 });
+  assert.equal(furtherLimits({ milliseconds: null }).milliseconds, null);
+  assert.deepEqual(furtherLimits({ structure: { places: 40 } }).structure, { places: 40 });
+});

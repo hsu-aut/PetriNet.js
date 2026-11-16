@@ -223,6 +223,87 @@ check(typeof stateSearch.asked === 'string' && stateSearch.asked.length > 0, 'a 
 check(stateSearch.searching === false, 'the state space search was still running after Stop');
 await view.page.close();
 
+// ── searching further: ten times the limits, once, only with a worker ──────
+const further = await open();
+await build(further.page, 6); // 64 markings
+const cutOff = await further.page.evaluate(async () => {
+  window.ptn.get('findingsPanel').open();
+  await window.ptn.get('findings').analyse({ markings: 10 });
+  const actions = () => [...document.querySelectorAll('.ptn-finding-action')].map((button) => button.getAttribute('aria-label'));
+  const before = {
+    rows: [...document.querySelectorAll('.ptn-finding')].map((row) => row.querySelector('.ptn-finding-rule')?.textContent),
+    offered: actions().filter((label) => /ten times the limits/.test(label ?? '')),
+    visible: [...document.querySelectorAll('.ptn-finding-action')].some((button) => /Search further/.test(button.textContent)),
+  };
+  const button = [...document.querySelectorAll('.ptn-finding-action')].find((b) => /Search further/.test(b.textContent));
+  button?.click();
+  const busyNow = window.ptn.get('findings').busy;
+  const busyRow = String(window.ptn.get('findings').progress?.limit ?? '');
+  await window.ptn.get('netSearch').idle();
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  return {
+    before, busyNow, busyRow,
+    after: {
+      rules: [...document.querySelectorAll('.ptn-finding')].map((row) => row.querySelector('.ptn-finding-rule')?.textContent),
+      offered: [...document.querySelectorAll('.ptn-finding-action')].some((b) => /Search further/.test(b.textContent)),
+      complete: window.ptn.get('findings').canSearchFurther,
+    },
+  };
+});
+check(cutOff.before.rows.includes('PT17'), 'a search cut off at ten markings gave no PT17');
+check(cutOff.before.visible && cutOff.before.offered.length === 1 && /up to 100 markings/.test(cutOff.before.offered[0]),
+  `the PT17 row offers ${JSON.stringify(cutOff.before.offered)}`);
+check(cutOff.busyNow === true && cutOff.busyRow === '100', `the further search ran with a limit of '${cutOff.busyRow}' markings`);
+check(!cutOff.after.rules.includes('PT17') && cutOff.after.offered === false, 'after a further search that was enough, the list still offers one');
+await further.page.close();
+
+const noWorker = await open('?worker=off');
+await build(noWorker.page, 6);
+const inlineOffer = await noWorker.page.evaluate(async () => {
+  window.ptn.get('findingsPanel').open();
+  await window.ptn.get('findings').analyse({ markings: 10 });
+  return [...document.querySelectorAll('.ptn-finding-action')].some((b) => /Search further/.test(b.textContent));
+});
+check(inlineOffer === false, 'a further search is offered without a worker');
+await noWorker.page.close();
+
+const stopFurther = await open();
+await build(stopFurther.page, SIZE);
+const stoppedFurther = await stopFurther.page.evaluate(async (size) => {
+  window.ptn.get('findingsPanel').open();
+  await window.ptn.get('findings').analyse({ markings: 2000, milliseconds: 60000 });
+  const first = [...document.querySelectorAll('.ptn-finding')].map((row) => row.textContent);
+  const button = [...document.querySelectorAll('.ptn-finding-action')].find((b) => /Search further/.test(b.textContent));
+  button?.click();
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  const duringBusy = window.ptn.get('findings').busy;
+  document.querySelector('.ptn-findings-stop')?.click();
+  await window.ptn.get('netSearch').idle();
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  const rows = [...document.querySelectorAll('.ptn-finding')].map((row) => row.textContent);
+  return { size, hadButton: Boolean(button), duringBusy, first: first.length, rows };
+}, SIZE);
+check(stoppedFurther.hadButton && stoppedFurther.duringBusy === true, 'the further search did not start on the large net');
+check(stoppedFurther.rows.some((text) => /further search was stopped; this is the earlier answer/.test(text)), `Stop left '${stoppedFurther.rows.slice(-2)}'`);
+check(stoppedFurther.rows.length >= stoppedFurther.first, 'Stop did not bring the earlier list back');
+await stopFurther.page.close();
+
+const furtherView = await open();
+await build(furtherView.page, 6);
+const viewResult = await furtherView.page.evaluate(async () => {
+  const v = window.ptn.get('reachabilityView');
+  await v.show({ markings: 10 });
+  const offered = !document.querySelector('.ptn-states-further').hidden;
+  const first = v.state;
+  document.querySelector('.ptn-states-further').click();
+  await window.ptn.get('netSearch').idle();
+  await new Promise((resolve) => setTimeout(resolve, 80));
+  return { offered, first, second: v.state, hidden: document.querySelector('.ptn-states-further').hidden };
+});
+check(viewResult.offered && viewResult.first.markings <= 10 && viewResult.first.complete === false, `the state space of a cut off search: ${JSON.stringify(viewResult)}`);
+check(viewResult.second.markings === 64 && viewResult.second.complete === true && viewResult.hidden === true, `after a further search: ${JSON.stringify(viewResult.second)}`);
+await furtherView.page.close();
+
 // ── the element search of diagram-js still works: the service of the worker has its own name ──
 const finder = await open();
 await build(finder.page, 3);

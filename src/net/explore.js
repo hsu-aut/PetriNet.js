@@ -19,9 +19,11 @@ export const OMEGA = Infinity;
 /** How many new markings between two reports of progress. */
 const PROGRESS_EVERY = 500;
 
+/** What a search looks at before it stops, unless it is told otherwise. */
+export const SEARCH_LIMITS = { markings: 20000, milliseconds: 2000 };
+
 const DEFAULT_LIMITS = {
-  markings: 20000,
-  milliseconds: 2000,
+  ...SEARCH_LIMITS,
   // The clock, so that a test can make the time limit bite without waiting.
   now: () => Date.now(),
 };

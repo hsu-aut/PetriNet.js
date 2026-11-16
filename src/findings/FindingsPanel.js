@@ -58,6 +58,7 @@ export default class FindingsPanel {
 
     this._note = document.createElement('p');
     this._note.className = 'ptn-findings-note';
+    this._note.setAttribute('aria-live', 'polite');
     this._note.hidden = true;
 
     this._list = document.createElement('ul');
@@ -160,7 +161,7 @@ export default class FindingsPanel {
     this._note.hidden = !message;
   }
 
-  _update({ findings, problem, stale, busy, stopped, progress }) {
+  _update({ findings, problem, stale, busy, stopped, progress, further, furtherStopped, cutOff }) {
     this._busyNow = Boolean(busy);
     this._button.disabled = this._busyNow;
     if (this._busyNow) this._button.textContent = 'Analysing\u2026';
@@ -218,6 +219,23 @@ export default class FindingsPanel {
       this._list.appendChild(row({
         severity: 'information',
         message: 'The analysis was stopped, so only what the host found is listed. Analyse again.',
+      }));
+    }
+
+    // A further search that was stopped brings back the earlier answer, and says so.
+    if (furtherStopped && !this._busyNow) {
+      this._list.appendChild(row({
+        severity: 'information',
+        message: 'The further search was stopped; this is the earlier answer.',
+      }));
+    }
+
+    // Ten times the usual limits were not enough: what a longer search cannot give is said, and
+    // what does not depend on the search is pointed out.
+    if (further && cutOff && !this._busyNow && !furtherStopped) {
+      this._list.appendChild(row({
+        severity: 'information',
+        message: 'Ten times the usual limits were not enough either. The proofs from the structure (PT22 to PT25) hold at any size.',
       }));
     }
 
@@ -287,6 +305,17 @@ export default class FindingsPanel {
       });
     }
 
+    // The search stopped at its limit: a longer one on offer, once.
+    if (finding.rule === 'PT17' && this._findings.canSearchFurther) {
+      const { markings, seconds } = this._findings.furtherPreview;
+      actions.push({
+        text: '⟳ Search further',
+        title: `Analyse again with ten times the limits: up to ${grouped(markings)} markings`
+          + `${seconds === null ? '' : ` and ${seconds} s`}. The canvas stays usable.`,
+        run: () => this._findings.searchFurther(),
+      });
+    }
+
     if (actions.length === 0) return;
 
     const box = document.createElement('span');
@@ -295,8 +324,14 @@ export default class FindingsPanel {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'ptn-finding-action';
-      button.textContent = action.text;
+      // The symbol is for the eye; the name of the button is its title.
+      const [symbol, ...words] = action.text.split(' ');
+      const mark = document.createElement('span');
+      mark.setAttribute('aria-hidden', 'true');
+      mark.textContent = symbol;
+      button.append(mark, ` ${words.join(' ')}`);
       button.title = action.title;
+      button.setAttribute('aria-label', action.title);
       button.addEventListener('click', (event) => {
         // The row below selects an element; a button is not that click.
         event.stopPropagation();
