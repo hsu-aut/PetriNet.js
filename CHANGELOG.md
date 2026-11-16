@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.7.0
+
+- **Set as initial marking.** A button in the simulation bar, `simulation.setAsInitial()`
+  and `modeling.setInitialMarking(marking)` make a marking the initial one, in one
+  step of undo. The state space view says so after a click on a node.
+- **Search further.** PT17 offers a search with ten times the limits, once, for the
+  list and the state space view. Stop returns to the earlier answer.
+- **Why.** PT16 and PT25 carry the firings into the marking where the loss
+  happens (`marking` of the finding) and offer "Why", like "Way there" for PT15.
+- **PT14 says why.** "Mid never holds the 2 tokens it needs." or "Its input places
+  never hold enough tokens at the same time." replaces the former bare sentence.
+- PT16 is no longer reported for a workflow net at its initial marking (PT25 says it).
+- Findings carry `bound` (PT13, whole search) and `live` (PT23).
+- Actions in the list have an accessible name.
+
 ## 0.6.1
 
 - **A picture of the net during a simulation shows the document, not the run.**

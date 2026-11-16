@@ -205,6 +205,31 @@ an import, ends the run rather than leaving a marking on a net that is gone.
 a start was refused, `problem`. A host ends a run with `simulation.stop()`, which
 also ends a played run.
 
+### Taking a marking
+
+While a run is on, the button "Set as initial marking" in the bar makes the marking
+on the net the initial marking of the document. The run ends, with the reason
+shown, and one Ctrl+Z gives the old marking back. From code:
+`simulation.setAsInitial()` (check `simulation.canSetAsInitial`) and
+`modeling.setInitialMarking({ placeId: tokens })`, one step of undo for any number
+of places. A node of the state space view can be taken the same way.
+
+### Searching further
+
+A search that hit its limits says so, and the finding PT17 offers "Search further".
+It repeats the search once with ten times the limits, for the list and for the
+state space view (`findings.searchFurther()`, `reachabilityView.searchFurther()`;
+`canSearchFurther` tells whether it is offered). Stop returns to the earlier
+answer. The proofs from the structure (PT22 to PT25) hold at any size and are not
+repeated.
+
+### Why
+
+PT16 (a transition can never fire again) and PT25 (the net is not sound) offer
+"Why": the firings that lead into the marking where it is lost are loaded into the
+simulation, to be stepped through. "Way there" does the same for PT15. The way is
+worked out in the worker, next to the state space.
+
 `findingsPanel.analyse()` analyses and opens the list on the canvas, as the
 Analyse button does; `findingsPanel.open()` only opens it.
 
