@@ -121,8 +121,9 @@ test('exploreData: a net that grows without bound is written with omega, and is 
 });
 
 test('exploreData: a search stopped at a limit says so and still returns text', () => {
-  const answer = exploreData(fixtures.producer, { markings: 2 }, 'dot');
-  assert.equal(answer.complete, answer.stopped === null);
+  const answer = exploreData(fixtures.qualityCheck, { markings: 3 }, 'dot');
+  assert.equal(answer.stopped, 'markings');
+  assert.equal(answer.complete, false);
   assert.ok(answer.text.startsWith('digraph'));
 });
 
